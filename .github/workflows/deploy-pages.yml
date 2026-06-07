@@ -1,0 +1,102 @@
+# Reusable workflow: build a Jekyll site with Bundler and deploy it to GitHub Pages.
+#
+# Consume from another repository:
+#
+#   jobs:
+#     deploy:
+#       uses: stklug84/github-workflows/.github/workflows/deploy-pages.yml@v1
+#
+# The caller MUST grant the required permissions (contents: read, pages: write,
+# id-token: write) and SHOULD set a "pages" concurrency group. See README.md.
+name: Deploy Jekyll to GitHub Pages (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      source:
+        description: "Jekyll source directory."
+        type: string
+        required: false
+        default: "./"
+      destination:
+        description: "Build output directory (uploaded as the Pages artifact)."
+        type: string
+        required: false
+        default: "./_site"
+      runs-on:
+        description: "Runner label for both jobs."
+        type: string
+        required: false
+        default: "ubuntu-latest"
+      environment-name:
+        description: "Deployment environment name."
+        type: string
+        required: false
+        default: "github-pages"
+      ruby-version:
+        description: >-
+          Ruby version for ruby/setup-ruby. Leave empty to let setup-ruby
+          resolve it from .ruby-version / .tool-versions / Gemfile.
+        type: string
+        required: false
+        default: ""
+      checkout-ref:
+        description: "Optional git ref to build. Defaults to the caller's ref."
+        type: string
+        required: false
+        default: ""
+
+# Reusable workflows do not inherit the caller's permissions block; they must
+# declare their own. The caller still has to grant at least these scopes.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.checkout-ref }}
+          fetch-depth: 0
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ inputs.ruby-version }}
+          bundler-cache: true
+
+      - name: Setup Pages
+        id: pages
+        uses: actions/configure-pages@v6
+
+      - name: Build with Jekyll (Bundler)
+        env:
+          JEKYLL_ENV: production
+          # configure-pages exports the correct baseurl for project sites.
+          PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+        run: |
+          set -eu
+          bundle exec jekyll build \
+            --source "${{ inputs.source }}" \
+            --destination "${{ inputs.destination }}" \
+            --baseurl "${PAGES_BASE_PATH}"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: ${{ inputs.destination }}
+
+  deploy:
+    needs: build
+    runs-on: ${{ inputs.runs-on }}
+    environment:
+      name: ${{ inputs.environment-name }}
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
