@@ -1,0 +1,242 @@
+# Reusable workflow: build a Jekyll site (Bundler) and run advisory quality
+# checks. Intended for pull-request validation.
+#
+# Consume from another repository:
+#
+#   jobs:
+#     validate:
+#       uses: stklug84/github-workflows/.github/workflows/jekyll-ci.yml@v1
+#
+# The `build` job is the meaningful gate (wire it into branch protection as
+# `<caller-job> / build`). All other jobs are advisory (continue-on-error) and
+# can be toggled off per repo via the run-* inputs.
+name: Jekyll CI (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: "Runner label for all jobs."
+        type: string
+        required: false
+        default: "ubuntu-latest"
+      source:
+        description: "Jekyll source directory."
+        type: string
+        required: false
+        default: "./"
+      destination:
+        description: "Build output directory."
+        type: string
+        required: false
+        default: "./_site"
+      ruby-version:
+        description: >-
+          Ruby version for ruby/setup-ruby. Leave empty to resolve from
+          .ruby-version / .tool-versions / Gemfile.
+        type: string
+        required: false
+        default: ""
+      node-version:
+        description: "Node version for the html-validate job."
+        type: string
+        required: false
+        default: "20"
+      html-validate-version:
+        description: "html-validate npm version to install."
+        type: string
+        required: false
+        default: "9"
+      cspell-config:
+        description: "Path to the cspell config file."
+        type: string
+        required: false
+        default: ".cspell.json"
+      yamllint-config:
+        description: "Path to the yamllint config file."
+        type: string
+        required: false
+        default: ".yamllint.yml"
+      yamllint-paths:
+        description: "Space-separated paths for yamllint to check."
+        type: string
+        required: false
+        default: ".github/ _config.yml"
+      markdownlint-globs:
+        description: "Globs for markdownlint-cli2."
+        type: string
+        required: false
+        default: "**/*.md"
+      run-html-validate:
+        description: "Run the html-validate advisory job."
+        type: boolean
+        required: false
+        default: true
+      run-link-check:
+        description: "Run the link-check advisory job."
+        type: boolean
+        required: false
+        default: true
+      run-spell-check:
+        description: "Run the spell-check advisory job."
+        type: boolean
+        required: false
+        default: true
+      run-yaml-lint:
+        description: "Run the yaml-lint advisory job."
+        type: boolean
+        required: false
+        default: true
+      run-actions-lint:
+        description: "Run the actions-lint advisory job."
+        type: boolean
+        required: false
+        default: true
+      run-markdown-lint:
+        description: "Run the markdown-lint advisory job."
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Meaningful gate — wire this into branch protection as `<caller-job> / build`.
+  build:
+    name: build
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ inputs.ruby-version }}
+          bundler-cache: true
+
+      - name: Build with Jekyll (Bundler)
+        env:
+          JEKYLL_ENV: production
+        run: |
+          set -eu
+          bundle exec jekyll build \
+            --source "${{ inputs.source }}" \
+            --destination "${{ inputs.destination }}"
+
+      - name: Upload site artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: site
+          path: ${{ inputs.destination }}
+          retention-days: 1
+
+  html-validate:
+    name: html-validate (advisory)
+    runs-on: ${{ inputs.runs-on }}
+    needs: build
+    if: ${{ inputs.run-html-validate }}
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Download site
+        uses: actions/download-artifact@v8
+        with:
+          name: site
+          path: _site
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ inputs.node-version }}
+      - name: Install html-validate
+        run: npm install --no-save "html-validate@${{ inputs.html-validate-version }}"
+      - name: Run html-validate
+        run: npx html-validate "_site/**/*.html"
+
+  link-check:
+    name: link-check (advisory)
+    runs-on: ${{ inputs.runs-on }}
+    needs: build
+    if: ${{ inputs.run-link-check }}
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Download site
+        uses: actions/download-artifact@v8
+        with:
+          name: site
+          path: _site
+      - name: Run lychee link checker
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: >-
+            --no-progress
+            --max-redirects 5
+            --cache
+            --max-cache-age 1d
+            --accept 200,204,206,301,302,303,307,308
+            --exclude 'mailto:'
+            --root-dir "$GITHUB_WORKSPACE/_site"
+            _site
+
+  spell-check:
+    name: spell-check (advisory)
+    runs-on: ${{ inputs.runs-on }}
+    if: ${{ inputs.run-spell-check }}
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Run cspell
+        uses: streetsidesoftware/cspell-action@v8
+        with:
+          config: ${{ inputs.cspell-config }}
+          incremental_files_only: false
+
+  yaml-lint:
+    name: yaml-lint (advisory)
+    runs-on: ${{ inputs.runs-on }}
+    if: ${{ inputs.run-yaml-lint }}
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Install yamllint
+        run: pipx install yamllint
+      - name: Run yamllint
+        env:
+          YAMLLINT_CONFIG: ${{ inputs.yamllint-config }}
+          YAMLLINT_PATHS: ${{ inputs.yamllint-paths }}
+        run: |
+          set -eu
+          # shellcheck disable=SC2086
+          yamllint -c "$YAMLLINT_CONFIG" $YAMLLINT_PATHS
+
+  actions-lint:
+    name: actions-lint (advisory)
+    runs-on: ${{ inputs.runs-on }}
+    if: ${{ inputs.run-actions-lint }}
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Run actionlint
+        uses: raven-actions/actionlint@v2
+
+  markdown-lint:
+    name: markdown-lint (advisory)
+    runs-on: ${{ inputs.runs-on }}
+    if: ${{ inputs.run-markdown-lint }}
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Run markdownlint
+        uses: DavidAnson/markdownlint-cli2-action@v23
+        with:
+          globs: ${{ inputs.markdownlint-globs }}

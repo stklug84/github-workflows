@@ -1,0 +1,54 @@
+# Reusable workflow: upsert a sticky pull-request comment linking to the
+# per-commit preview URL.
+#
+# Consume from another repository:
+#
+#   jobs:
+#     comment:
+#       uses: stklug84/github-workflows/.github/workflows/pr-preview-comment.yml@v1
+#       with:
+#         preview-domain: https://example.com
+#
+# The caller MUST grant `pull-requests: write`.
+name: PR preview comment (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      preview-domain:
+        description: "Base domain previews are served from (no trailing slash)."
+        type: string
+        required: true
+      comment-header:
+        description: "Sticky comment header key (identifies the comment to upsert)."
+        type: string
+        required: false
+        default: "preview-url"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  comment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compute short SHA
+        id: sha
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: echo "short=${HEAD_SHA:0:7}" >> "$GITHUB_OUTPUT"
+
+      - name: Upsert sticky preview comment
+        uses: marocchino/sticky-pull-request-comment@v3
+        with:
+          header: ${{ inputs.comment-header }}
+          message: |
+            **Preview deployed:** ${{ inputs.preview-domain }}/${{ steps.sha.outputs.short }}/
+
+            | Field  | Value                                     |
+            |--------|-------------------------------------------|
+            | Branch | `${{ github.event.pull_request.head.ref }}` |
+            | Commit | `${{ github.event.pull_request.head.sha }}` |
+
+            _Preview may take ~30s to become available after pushing._

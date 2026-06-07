@@ -44,13 +44,14 @@ The calling repo must contain a `Gemfile` that includes Jekyll, for example:
 ```ruby
 source 'https://rubygems.org'
 
-gem 'jekyll'
-gem 'github-pages'
+gem 'jekyll', '~> 4.3'
 gem 'webrick' # required for Ruby 3.0+
 ```
 
-Commit a `Gemfile.lock` (and optionally a `.ruby-version`) for reproducible,
-cache-friendly builds.
+Commit a `Gemfile.lock` and a `.ruby-version` (e.g. `3.3`) for reproducible,
+cache-friendly builds. `ruby/setup-ruby` requires an explicit version, so a
+`.ruby-version` (or `.tool-versions`) file is effectively required unless the
+`ruby-version` input is set.
 
 ### Inputs
 
@@ -64,6 +65,143 @@ cache-friendly builds.
 | `checkout-ref`     | `""`             | Optional git ref to build. Defaults to the caller's ref.                 |
 
 No secrets are required — GitHub Pages deployment uses the OIDC `id-token`.
+
+## `jekyll-ci.yml` — build & advisory checks for pull requests
+
+Builds the site with Bundler (the `build` job — the meaningful gate) and runs a
+set of advisory checks (`html-validate`, `link-check`, `spell-check`,
+`yaml-lint`, `actions-lint`, `markdown-lint`), each `continue-on-error`. Every
+advisory job can be toggled off per repo.
+
+### Usage
+
+```yaml
+name: PR validation
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-validate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    uses: stklug84/github-workflows/.github/workflows/jekyll-ci.yml@v1
+```
+
+> **Branch protection:** the gating check is exposed as `<caller-job> / build`
+> (e.g. `validate / build`). Point your required status check at that name.
+
+### Inputs
+
+| Input                   | Default              | Description                                   |
+|-------------------------|----------------------|-----------------------------------------------|
+| `runs-on`               | `ubuntu-latest`      | Runner label for all jobs.                     |
+| `source` / `destination`| `./` / `./_site`     | Jekyll build paths.                            |
+| `ruby-version`          | `""`                 | Ruby version (empty → `.ruby-version`/Gemfile).|
+| `node-version`          | `20`                 | Node for html-validate.                        |
+| `html-validate-version` | `9`                  | html-validate npm version.                     |
+| `cspell-config`         | `.cspell.json`       | cspell config path.                            |
+| `yamllint-config`       | `.yamllint.yml`      | yamllint config path.                          |
+| `yamllint-paths`        | `.github/ _config.yml` | Space-separated yamllint targets.            |
+| `markdownlint-globs`    | `**/*.md`            | markdownlint-cli2 globs.                       |
+| `run-html-validate`     | `true`               | Toggle the html-validate job.                  |
+| `run-link-check`        | `true`               | Toggle the link-check job.                     |
+| `run-spell-check`       | `true`               | Toggle the spell-check job.                    |
+| `run-yaml-lint`         | `true`               | Toggle the yaml-lint job.                      |
+| `run-actions-lint`      | `true`               | Toggle the actions-lint job.                   |
+| `run-markdown-lint`     | `true`               | Toggle the markdown-lint job.                  |
+
+## `jekyll-preview-deploy.yml` — per-commit preview publishing
+
+Builds a preview (with `baseurl: /<short-sha>`) and publishes it into a separate
+previews repository under a short-SHA path, pruning to the newest N previews.
+
+### Usage
+
+```yaml
+name: Deploy per-commit preview
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  preview:
+    uses: stklug84/github-workflows/.github/workflows/jekyll-preview-deploy.yml@v1
+    with:
+      previews-repo: owner/my-previews
+      preview-domain: https://example.com
+    secrets:
+      previews-deploy-token: ${{ secrets.PREVIEWS_DEPLOY_TOKEN }}
+```
+
+### Inputs & secrets
+
+| Input                   | Default     | Description                                     |
+|-------------------------|-------------|-------------------------------------------------|
+| `previews-repo`         | *(required)*| `owner/repo` to publish previews into.          |
+| `preview-domain`        | *(required)*| Base domain (no trailing slash).                |
+| `keep-last`             | `20`        | Newest preview directories to retain.           |
+| `environment-name`      | `previews`  | Deployment environment.                         |
+| `source` / `destination`| `./` / `./_site` | Jekyll build paths.                        |
+| `ruby-version`          | `""`        | Ruby version (empty → `.ruby-version`/Gemfile). |
+
+| Secret                  | Required | Description                                       |
+|-------------------------|----------|---------------------------------------------------|
+| `previews-deploy-token` | yes      | Token with write access to the previews repo.     |
+
+## `pr-preview-comment.yml` — sticky PR preview link
+
+Upserts a sticky pull-request comment linking to the per-commit preview URL.
+
+### Usage
+
+```yaml
+name: PR preview URL comment
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: pr-preview-comment-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  comment:
+    uses: stklug84/github-workflows/.github/workflows/pr-preview-comment.yml@v1
+    with:
+      preview-domain: https://example.com
+```
+
+The caller **must** grant `pull-requests: write`.
+
+### Inputs
+
+| Input            | Default       | Description                                |
+|------------------|---------------|--------------------------------------------|
+| `preview-domain` | *(required)*  | Base domain (no trailing slash).           |
+| `comment-header` | `preview-url` | Sticky comment header key (for upserting).  |
 
 ### Private repo access (one-time)
 

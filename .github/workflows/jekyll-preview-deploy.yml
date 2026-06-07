@@ -1,0 +1,182 @@
+# Reusable workflow: build a per-commit Jekyll preview and publish it into a
+# separate "previews" repository under a short-SHA path, pruning old previews.
+#
+# Consume from another repository:
+#
+#   jobs:
+#     preview:
+#       uses: stklug84/github-workflows/.github/workflows/jekyll-preview-deploy.yml@v1
+#       with:
+#         previews-repo: owner/my-previews
+#         preview-domain: https://example.com
+#       secrets:
+#         previews-deploy-token: ${{ secrets.PREVIEWS_DEPLOY_TOKEN }}
+name: Jekyll preview deploy (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      previews-repo:
+        description: "owner/repo of the previews repository to publish into."
+        type: string
+        required: true
+      preview-domain:
+        description: "Base domain the previews are served from (no trailing slash)."
+        type: string
+        required: true
+      keep-last:
+        description: "Number of newest preview directories to retain."
+        type: number
+        required: false
+        default: 20
+      environment-name:
+        description: "Deployment environment name."
+        type: string
+        required: false
+        default: "previews"
+      source:
+        description: "Jekyll source directory."
+        type: string
+        required: false
+        default: "./"
+      destination:
+        description: "Build output directory."
+        type: string
+        required: false
+        default: "./_site"
+      ruby-version:
+        description: >-
+          Ruby version for ruby/setup-ruby. Leave empty to resolve from
+          .ruby-version / .tool-versions / Gemfile.
+        type: string
+        required: false
+        default: ""
+    secrets:
+      previews-deploy-token:
+        description: "Token with write access to the previews repository."
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment-name }}
+    env:
+      PREVIEWS_REPO: ${{ inputs.previews-repo }}
+      PREVIEW_DOMAIN: ${{ inputs.preview-domain }}
+      KEEP_LAST: ${{ inputs.keep-last }}
+    steps:
+      - name: Checkout source repo
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Compute short SHA
+        run: echo "SHORT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
+      - name: Override Jekyll config for preview build
+        run: |
+          set -eu
+          if [ ! -f _config.yml ]; then
+            : > _config.yml
+          fi
+          {
+            echo ""
+            echo "# --- preview overrides (runner-local, not committed) ---"
+            echo "baseurl: /${SHORT_SHA}"
+            echo "url: ${PREVIEW_DOMAIN}"
+          } >> _config.yml
+          echo "----- _config.yml after overrides -----"
+          cat _config.yml
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ inputs.ruby-version }}
+          bundler-cache: true
+
+      - name: Build with Jekyll (Bundler)
+        env:
+          JEKYLL_ENV: production
+        run: |
+          set -eu
+          bundle exec jekyll build \
+            --source "${{ inputs.source }}" \
+            --destination "${{ inputs.destination }}"
+
+      - name: Checkout previews repo
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.previews-repo }}
+          token: ${{ secrets.previews-deploy-token }}
+          path: previews
+          fetch-depth: 0
+
+      - name: Stage preview folder
+        run: |
+          set -eu
+          rm -rf "previews/${SHORT_SHA}"
+          mkdir -p "previews/${SHORT_SHA}"
+          cp -R "${{ inputs.destination }}/." "previews/${SHORT_SHA}/"
+
+      - name: Prune to last ${{ inputs.keep-last }} previews
+        working-directory: previews
+        run: |
+          set -eu
+          KEEP="${KEEP_LAST}"
+          NOW="$(date +%s)"
+          # Collect "<timestamp>\t<dir>" lines for each immediate subdir,
+          # excluding .git and any protected files (which are not dirs anyway).
+          tmpfile="$(mktemp)"
+          for entry in */ ; do
+            dir="${entry%/}"
+            case "$dir" in
+              .git|CNAME|.nojekyll|index.html) continue ;;
+            esac
+            [ -d "$dir" ] || continue
+            ts="$(git log -1 --format=%ct -- "$dir" 2>/dev/null || true)"
+            if [ -z "$ts" ]; then
+              # Not yet committed (this run's freshly staged dir, or other new dir): protect it.
+              ts="$NOW"
+            fi
+            printf '%s\t%s\n' "$ts" "$dir" >> "$tmpfile"
+          done
+
+          total="$(wc -l < "$tmpfile" | tr -d ' ')"
+          echo "Found ${total} preview directories; keeping newest ${KEEP}."
+
+          if [ "$total" -gt "$KEEP" ]; then
+            # Sort by timestamp desc, skip the first KEEP, delete the rest.
+            sort -rn "$tmpfile" | tail -n +"$((KEEP + 1))" | cut -f2- | while IFS= read -r old; do
+              [ -n "$old" ] || continue
+              echo "Pruning: ${old}"
+              rm -rf -- "$old"
+            done
+          fi
+          rm -f "$tmpfile"
+
+      - name: Commit and push preview
+        working-directory: previews
+        run: |
+          set -eu
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Preview: ${SHORT_SHA} from ${GITHUB_REF_NAME}"
+          git push
+
+      - name: Summary
+        run: |
+          {
+            echo "### Preview deployed"
+            echo ""
+            echo "- URL: ${PREVIEW_DOMAIN}/${SHORT_SHA}/"
+            echo "- Branch: \`${GITHUB_REF_NAME}\`"
+            echo "- Commit: \`${GITHUB_SHA}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
