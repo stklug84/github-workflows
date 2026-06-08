@@ -5,7 +5,7 @@
 #
 #   jobs:
 #     preview:
-#       uses: stklug84/github-workflows/.github/workflows/jekyll/deploy-jekyll-preview.yml@v1
+#       uses: stklug84/github-workflows/.github/workflows/jekyll-deploy-preview.yml@v1.2.0
 #       with:
 #         previews-repo: owner/my-previews
 #         preview-domain: https://example.com
@@ -91,20 +91,16 @@ jobs:
           echo "----- _config.yml after overrides -----"
           cat _config.yml
 
-      - name: Setup Ruby
-        uses: ruby/setup-ruby@v1
+      - name: Setup Ruby with Bundler
+        uses: stklug84/actions/ruby/setup-ruby-bundler@v1
         with:
           ruby-version: ${{ inputs.ruby-version }}
-          bundler-cache: true
 
       - name: Build with Jekyll (Bundler)
-        env:
-          JEKYLL_ENV: production
-        run: |
-          set -eu
-          bundle exec jekyll build \
-            --source "${{ inputs.source }}" \
-            --destination "${{ inputs.destination }}"
+        uses: stklug84/actions/jekyll/jekyll-build@v1
+        with:
+          source: ${{ inputs.source }}
+          destination: ${{ inputs.destination }}
 
       - name: Checkout previews repo
         uses: actions/checkout@v6
