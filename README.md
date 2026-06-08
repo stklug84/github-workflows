@@ -2,7 +2,12 @@
 
 Central, reusable GitHub Actions workflows for this account.
 
-## `deploy-pages.yml` — build & deploy a Jekyll site to GitHub Pages
+> **Note:** Reusable workflows must live flat in `.github/workflows/` (GitHub
+> does not support subdirectories for them), so files are grouped by filename
+> prefix (`jekyll-*`, `misc-*`). The shared Jekyll build steps are provided as
+> composite actions from [`stklug84/actions`](https://github.com/stklug84/actions).
+
+## `jekyll-deploy-pages.yml` — build & deploy a Jekyll site to GitHub Pages
 
 A reusable workflow (`on: workflow_call`) that builds a Jekyll site with
 **Bundler** (`bundle exec jekyll build`, driven by the calling repo's own
@@ -31,7 +36,7 @@ concurrency:
 
 jobs:
   deploy:
-    uses: stklug84/github-workflows/.github/workflows/deploy-pages.yml@v1
+    uses: stklug84/github-workflows/.github/workflows/jekyll-deploy-pages.yml@v1.2.0
 ```
 
 The caller **must** declare the `permissions` block above — reusable workflows
@@ -66,7 +71,7 @@ cache-friendly builds. `ruby/setup-ruby` requires an explicit version, so a
 
 No secrets are required — GitHub Pages deployment uses the OIDC `id-token`.
 
-## `jekyll-ci.yml` — build & advisory checks for pull requests
+## `jekyll-validate-pages.yml` — build & advisory checks for pull requests
 
 Builds the site with Bundler (the `build` job — the meaningful gate) and runs a
 set of advisory checks (`html-validate`, `link-check`, `spell-check`,
@@ -92,7 +97,7 @@ concurrency:
 
 jobs:
   validate:
-    uses: stklug84/github-workflows/.github/workflows/jekyll-ci.yml@v1
+    uses: stklug84/github-workflows/.github/workflows/jekyll-validate-pages.yml@v1.2.0
 ```
 
 > **Branch protection:** the gating check is exposed as `<caller-job> / build`
@@ -118,7 +123,7 @@ jobs:
 | `run-actions-lint`      | `true`               | Toggle the actions-lint job.                   |
 | `run-markdown-lint`     | `true`               | Toggle the markdown-lint job.                  |
 
-## `jekyll-preview-deploy.yml` — per-commit preview publishing
+## `jekyll-deploy-preview.yml` — per-commit preview publishing
 
 Builds a preview (with `baseurl: /<short-sha>`) and publishes it into a separate
 previews repository under a short-SHA path, pruning to the newest N previews.
@@ -142,7 +147,7 @@ concurrency:
 
 jobs:
   preview:
-    uses: stklug84/github-workflows/.github/workflows/jekyll-preview-deploy.yml@v1
+    uses: stklug84/github-workflows/.github/workflows/jekyll-deploy-preview.yml@v1.2.0
     with:
       previews-repo: owner/my-previews
       preview-domain: https://example.com
@@ -165,7 +170,7 @@ jobs:
 |-------------------------|----------|---------------------------------------------------|
 | `previews-deploy-token` | yes      | Token with write access to the previews repo.     |
 
-## `pr-preview-comment.yml` — sticky PR preview link
+## `misc-pr-preview-comment.yml` — sticky PR preview link
 
 Upserts a sticky pull-request comment linking to the per-commit preview URL.
 
@@ -189,7 +194,7 @@ concurrency:
 
 jobs:
   comment:
-    uses: stklug84/github-workflows/.github/workflows/pr-preview-comment.yml@v1
+    uses: stklug84/github-workflows/.github/workflows/misc-pr-preview-comment.yml@v1.2.0
     with:
       preview-domain: https://example.com
 ```
