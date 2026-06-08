@@ -5,12 +5,12 @@
 #
 #   jobs:
 #     validate:
-#       uses: stklug84/github-workflows/.github/workflows/jekyll-ci.yml@v1
+#       uses: stklug84/github-workflows/.github/workflows/jekyll/validate-jekyll-pages.yml@v1
 #
 # The `build` job is the meaningful gate (wire it into branch protection as
 # `<caller-job> / build`). All other jobs are advisory (continue-on-error) and
 # can be toggled off per repo via the run-* inputs.
-name: Jekyll CI (reusable)
+name: Validate Jekyll Pages
 
 on:
   workflow_call:

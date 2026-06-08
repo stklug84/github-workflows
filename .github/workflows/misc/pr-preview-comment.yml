@@ -5,12 +5,12 @@
 #
 #   jobs:
 #     comment:
-#       uses: stklug84/github-workflows/.github/workflows/pr-preview-comment.yml@v1
+#       uses: stklug84/github-workflows/.github/workflows/misc/pr-preview-comment.yml@v1
 #       with:
 #         preview-domain: https://example.com
 #
 # The caller MUST grant `pull-requests: write`.
-name: PR preview comment (reusable)
+name: PR preview comment
 
 on:
   workflow_call:
