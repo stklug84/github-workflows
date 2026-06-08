@@ -5,13 +5,13 @@
 #
 #   jobs:
 #     preview:
-#       uses: stklug84/github-workflows/.github/workflows/jekyll-preview-deploy.yml@v1
+#       uses: stklug84/github-workflows/.github/workflows/jekyll/deploy-jekyll-preview.yml@v1
 #       with:
 #         previews-repo: owner/my-previews
 #         preview-domain: https://example.com
 #       secrets:
 #         previews-deploy-token: ${{ secrets.PREVIEWS_DEPLOY_TOKEN }}
-name: Jekyll preview deploy (reusable)
+name: Deploy Jekyll Preview
 
 on:
   workflow_call:
