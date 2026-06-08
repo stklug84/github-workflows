@@ -4,7 +4,7 @@
 #
 #   jobs:
 #     deploy:
-#       uses: stklug84/github-workflows/.github/workflows/jekyll/deploy-jekyll-to-github-pages.yml@v1
+#       uses: stklug84/github-workflows/.github/workflows/jekyll-deploy-pages.yml@v1.2.0
 #
 # The caller MUST grant the required permissions (contents: read, pages: write,
 # id-token: write) and SHOULD set a "pages" concurrency group. See README.md.
@@ -63,27 +63,22 @@ jobs:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 0
 
-      - name: Setup Ruby
-        uses: ruby/setup-ruby@v1
+      - name: Setup Ruby with Bundler
+        uses: stklug84/actions/ruby/setup-ruby-bundler@v1
         with:
           ruby-version: ${{ inputs.ruby-version }}
-          bundler-cache: true
 
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v6
 
       - name: Build with Jekyll (Bundler)
-        env:
-          JEKYLL_ENV: production
-          # configure-pages exports the correct baseurl for project sites.
-          PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
-        run: |
-          set -eu
-          bundle exec jekyll build \
-            --source "${{ inputs.source }}" \
-            --destination "${{ inputs.destination }}" \
-            --baseurl "${PAGES_BASE_PATH}"
+        # configure-pages exports the correct baseurl for project sites.
+        uses: stklug84/actions/jekyll/jekyll-build@v1
+        with:
+          source: ${{ inputs.source }}
+          destination: ${{ inputs.destination }}
+          baseurl: ${{ steps.pages.outputs.base_path }}
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v7
