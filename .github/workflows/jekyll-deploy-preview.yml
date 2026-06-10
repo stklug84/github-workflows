@@ -93,17 +93,20 @@ jobs:
           cat _config.yml
 
       - name: Setup Ruby with Bundler
-        uses: stklug84/actions/ruby/setup-ruby-bundler@v1
+        uses: stklug84/actions/ruby/setup-ruby-bundler@2b736c4bde21265ae7838370be2753d973bfada0  # v1
         with:
           ruby-version: ${{ inputs.ruby-version }}
 
       - name: Build with Jekyll (Bundler)
-        uses: stklug84/actions/jekyll/jekyll-build@v1
+        uses: stklug84/actions/jekyll/jekyll-build@2b736c4bde21265ae7838370be2753d973bfada0  # v1
         with:
           source: ${{ inputs.source }}
           destination: ${{ inputs.destination }}
 
       - name: Checkout previews repo
+        # Trust model: `previews-repo` is a workflow_call input and can only be
+        # set in the caller's committed workflow file (write access required).
+        # Checked-out content is never executed, only written to and pushed.
         uses: actions/checkout@v6
         with:
           repository: ${{ inputs.previews-repo }}
@@ -112,11 +115,13 @@ jobs:
           fetch-depth: 0
 
       - name: Stage preview folder
+        env:
+          DESTINATION: ${{ inputs.destination }}
         run: |
           set -eu
           rm -rf "previews/${SHORT_SHA}"
           mkdir -p "previews/${SHORT_SHA}"
-          cp -R "${{ inputs.destination }}/." "previews/${SHORT_SHA}/"
+          cp -R "${DESTINATION}/." "previews/${SHORT_SHA}/"
 
       - name: Prune to last ${{ inputs.keep-last }} previews
         working-directory: previews
