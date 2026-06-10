@@ -59,6 +59,9 @@ jobs:
     runs-on: ${{ inputs.runs-on }}
     steps:
       - name: Checkout
+        # Trust model: `checkout-ref` is a workflow_call input and can only be
+        # set in the caller's committed workflow file (write access required).
+        # Callers MUST NOT wire PR-controlled refs into this deploy workflow.
         uses: actions/checkout@v6
         with:
           ref: ${{ inputs.checkout-ref }}

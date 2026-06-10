@@ -1,5 +1,8 @@
 # github-workflows
 
+[![Lint](https://github.com/stklug84/github-workflows/actions/workflows/lint.yml/badge.svg?event=pull_request)](https://github.com/stklug84/github-workflows/actions/workflows/lint.yml)
+[![CodeQL](https://github.com/stklug84/github-workflows/actions/workflows/codeql.yml/badge.svg)](https://github.com/stklug84/github-workflows/actions/workflows/codeql.yml)
+
 Central, reusable GitHub Actions workflows for this account.
 
 > **Note:** Reusable workflows must live flat in `.github/workflows/` (GitHub
