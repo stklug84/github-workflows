@@ -12,6 +12,9 @@
 # ------------------------------------------------------------------------------
 # List of deviations from the default:
 # - MD010 Hard Tabs in code blocks has been disabled
+# - MD013 Line length raised to 120 (matching yamllint), ignored in tables
+# - MD024 Duplicate headings allowed when not siblings
+# - MD060 Table column alignment check disabled
 # ------------------------------------------------------------------------------
 
 # Default state for all rules
@@ -28,3 +31,18 @@ MD010:
   ignore_code_languages: []
   # Number of spaces for each hard tab
   spaces_per_tab: 1
+
+# MD013/line-length - Line length
+MD013:
+  # Number of characters
+  line_length: 120
+  # Include tables
+  tables: false
+
+# MD024/no-duplicate-heading - Multiple headings with the same content
+MD024:
+  # Only check sibling headings
+  siblings_only: true
+
+# MD060/table-column-style - Table column style
+MD060: false

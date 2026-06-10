@@ -1,3 +1,4 @@
+---
 # Reusable workflow: upsert a sticky pull-request comment linking to the
 # per-commit preview URL.
 #
@@ -12,7 +13,7 @@
 # The caller MUST grant `pull-requests: write`.
 name: PR preview comment
 
-on:
+on:  # yamllint disable-line rule:truthy
   workflow_call:
     inputs:
       preview-domain:
