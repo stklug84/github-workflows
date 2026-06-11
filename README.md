@@ -211,6 +211,98 @@ The caller **must** grant `pull-requests: write`.
 | `preview-domain` | *(required)*  | Base domain (no trailing slash).           |
 | `comment-header` | `preview-url` | Sticky comment header key (for upserting).  |
 
+## `latex-build-cv.yml` — matrix-build LaTeX CV variants
+
+Discovers every CV variant under `<root>/*/` (via
+`stklug84/actions/texlive/discover-variants`), matrix-builds each one inside
+the caller's digest-pinned TeX Live container, and combines all PDFs into a
+single artifact named after the calling repo. No filenames are hardcoded.
+
+### Usage
+
+```yaml
+name: Build Document
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      local:
+        description: "Set to 'true' when running locally via gh act"
+        required: false
+        default: "false"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    uses: stklug84/github-workflows/.github/workflows/latex-build-cv.yml@v1.3.0
+    with:
+      texinputs: ".:../..:../../styles:../../images:"
+      local: ${{ inputs.local }}
+```
+
+### Inputs
+
+| Input                | Default                              | Description                                          |
+|----------------------|--------------------------------------|------------------------------------------------------|
+| `texinputs`          | `.:../..:../../styles:../../images:` | TEXINPUTS path, relative to each variant directory.  |
+| `root`               | `cvs`                                | Directory scanned for CV variants.                   |
+| `default-engine`     | `latexmk`                            | Engine for variants without an `.engine` file.       |
+| `local`              | `false`                              | gh-act local mode (skips artifact upload).           |
+| `texlive-dockerfile` | `.github/docker/texlive/Dockerfile`  | Caller file whose `FROM` pins the TeX Live image.    |
+| `runs-on`            | `ubuntu-latest`                      | Runner label for all jobs.                           |
+
+The TeX Live image is resolved from the caller's Dockerfile, so the caller's
+Dependabot (docker ecosystem) keeps the digest pin current.
+
+## `latex-build-book.yml` — LaTeX book PDF + EPUB
+
+Builds the print-ready PDF (engine/aux-tool detection via
+`stklug84/actions/texlive/detect`) and, unless toggled off, the validated
+EPUB 3 edition, then combines both into a single user-facing artifact.
+
+### Usage
+
+```yaml
+jobs:
+  build:
+    uses: stklug84/github-workflows/.github/workflows/latex-build-book.yml@v1.3.0
+    with:
+      book-title: "My Book"
+      rasterize-pdf: images/map.pdf
+      stylesheet: config/ebook.css
+      epubcheck-filter-file: config/epubcheck-filter.txt
+```
+
+### Inputs
+
+| Input                   | Default                | Description                                           |
+|-------------------------|------------------------|-------------------------------------------------------|
+| `book-title`            | *(required)*           | Title patched into the EPUB metadata.                 |
+| `engine`                | `""`                   | latexmk / pdflatex / latex-chain (empty → default).   |
+| `local`                 | `false`                | gh-act local mode (skips artifact upload).            |
+| `main-tex`              | `""`                   | Main basename (empty → `\documentclass` auto-detect). |
+| `texlive-image`         | `texlive/texlive:latest` | Container image for the build jobs.                 |
+| `run-epub`              | `true`                 | Toggle the EPUB build + validation jobs.              |
+| `epub-config`           | `config/ebook.cfg`     | tex4ebook configuration file.                         |
+| `epub-build-file`       | `config/ebook.mk4`     | tex4ebook build file.                                 |
+| `stylesheet`            | `""`                   | CSS bundled into the EPUB.                            |
+| `images-dir`            | `images`               | Images bundled into the EPUB.                         |
+| `rasterize-pdf`         | `""`                   | Optional vector PDF rasterized to 300 dpi PNG.        |
+| `fonts`                 | `""`                   | Newline-separated OTFs embedded via kpsewhich.        |
+| `font-license`          | `""`                   | License file bundled with the fonts.                  |
+| `epubcheck-version`     | `5.1.0`                | Pinned epubcheck release.                             |
+| `epubcheck-filter-file` | `""`                   | Optional epubcheck findings filter.                   |
+| `artifact-name`         | `""`                   | Combined artifact name (empty → repo name).           |
+| `runs-on`               | `ubuntu-latest`        | Runner label for all jobs.                            |
+
 ### Private repo access (one-time)
 
 Because this repo is **private**, other private repos cannot call its workflows
