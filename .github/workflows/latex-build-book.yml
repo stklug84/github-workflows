@@ -46,6 +46,14 @@ on:  # yamllint disable-line rule:truthy
         type: string
         required: false
         default: ""
+      eps-from-pdf:
+        description: >-
+          Newline-separated PDF graphics converted to .eps siblings
+          before a latex-chain build (DVI mode: graphicx + dvips cannot
+          embed PDF graphics). Ignored by the PDF-mode engines.
+        type: string
+        required: false
+        default: ""
       texlive-image:
         description: "TeX Live container image for the build jobs."
         type: string
@@ -165,7 +173,7 @@ jobs:
       # \documentclass auto-detection.
       - name: Detect build configuration
         id: detect
-        uses: stklug84/actions/texlive/detect@d64bcd7b0bd89fd97f692e3178f2e897e94deaf5  # v2
+        uses: stklug84/actions/texlive/detect@4fedd60e6723f81cf66c4fc99d85cf40dc8db515  # v2.1.0
         with:
           engine: ${{ inputs.engine }}
           local: ${{ inputs.local }}
@@ -191,10 +199,11 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Build PDF
-        uses: stklug84/actions/texlive/build-pdf@d64bcd7b0bd89fd97f692e3178f2e897e94deaf5  # v2
+        uses: stklug84/actions/texlive/build-pdf@4fedd60e6723f81cf66c4fc99d85cf40dc8db515  # v2.1.0
         with:
           main: ${{ needs.detect.outputs.main }}
           engine: ${{ needs.detect.outputs.engine }}
+          eps-from-pdf: ${{ inputs.eps-from-pdf }}
           has-bib: ${{ needs.detect.outputs.has_bib }}
           has-biblatex: ${{ needs.detect.outputs.has_biblatex }}
           has-index: ${{ needs.detect.outputs.has_index }}
@@ -213,7 +222,7 @@ jobs:
 
       - name: Upload build logs on failure
         if: failure() && needs.detect.outputs.local != 'true'
-        uses: stklug84/actions/texlive/upload-build-logs@d64bcd7b0bd89fd97f692e3178f2e897e94deaf5  # v2
+        uses: stklug84/actions/texlive/upload-build-logs@4fedd60e6723f81cf66c4fc99d85cf40dc8db515  # v2.1.0
         with:
           artifact-name: ${{ env.ARTIFACT_NAME }}-build-logs
           paths: |
@@ -242,7 +251,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Build EPUB
-        uses: stklug84/actions/texlive/build-epub@d64bcd7b0bd89fd97f692e3178f2e897e94deaf5  # v2
+        uses: stklug84/actions/texlive/build-epub@4fedd60e6723f81cf66c4fc99d85cf40dc8db515  # v2.1.0
         with:
           main: ${{ needs.detect.outputs.main }}
           config: ${{ inputs.epub-config }}
@@ -261,7 +270,7 @@ jobs:
       # failed epubcheck leaves the full workspace intact for the
       # post-mortem log upload below.
       - name: Validate EPUB and clean workspace
-        uses: stklug84/actions/texlive/validate-epub@d64bcd7b0bd89fd97f692e3178f2e897e94deaf5  # v2
+        uses: stklug84/actions/texlive/validate-epub@4fedd60e6723f81cf66c4fc99d85cf40dc8db515  # v2.1.0
         with:
           main: ${{ needs.detect.outputs.main }}
           epubcheck-version: ${{ inputs.epubcheck-version }}
@@ -279,7 +288,7 @@ jobs:
 
       - name: Upload EPUB build logs on failure
         if: failure() && needs.detect.outputs.local != 'true'
-        uses: stklug84/actions/texlive/upload-build-logs@d64bcd7b0bd89fd97f692e3178f2e897e94deaf5  # v2
+        uses: stklug84/actions/texlive/upload-build-logs@4fedd60e6723f81cf66c4fc99d85cf40dc8db515  # v2.1.0
         with:
           artifact-name: ${{ env.ARTIFACT_NAME }}-build-epub-logs
           paths: |
