@@ -2,19 +2,28 @@
 # Reusable workflow: matrix-build every LaTeX CV variant discovered under
 # `root` (default cvs/*/) inside a digest-pinned TeX Live container, then
 # combine all PDFs into a single artifact named after the calling repo.
+# Optionally (release: 'true') publish the PDFs as a versioned GitHub
+# release (tag v<YYYY.MM.DD>-r<run-number>) on push events, pruned to the
+# `release-keep` newest releases.
 #
 # Consume from another repository:
 #
 #   jobs:
 #     build:
-#       uses: stklug84/github-workflows/.github/workflows/latex-build-cv.yml@v1.3.0
+#       # Only needed when release: 'true'; otherwise contents: read.
+#       permissions:
+#         contents: write
+#       uses: stklug84/github-workflows/.github/workflows/latex-build-cv.yml@v1.5.0
 #       with:
 #         texinputs: ".:../..:../../styles:../../images:"
+#         release: "true"
+#         release-keep: "10"
 #
 # The TeX Live container image is resolved from the caller's Dockerfile
 # (see `texlive-dockerfile`), so Dependabot's docker ecosystem in the
 # calling repo keeps the digest pin current. The caller SHOULD set a
-# concurrency group and only needs `contents: read`.
+# concurrency group and needs `contents: read`, or `contents: write`
+# when releases are enabled.
 name: Build LaTeX CVs
 
 on:  # yamllint disable-line rule:truthy
@@ -59,6 +68,24 @@ on:  # yamllint disable-line rule:truthy
         type: string
         required: false
         default: "ubuntu-latest"
+      release:
+        description: >-
+          Set to 'true' to publish the combined PDFs as a versioned
+          GitHub release (tag v<YYYY.MM.DD>-r<run-number>) when the
+          workflow runs on a push event. Requires the caller to grant
+          `contents: write` on the calling job.
+        type: string
+        required: false
+        default: "false"
+      release-keep:
+        description: >-
+          Retention cap for releases created by this workflow: keep only
+          the N newest releases (matching the v<YYYY.MM.DD>-r<N> tag
+          pattern) and delete older ones including their tags. '0'
+          disables pruning (keep everything).
+        type: string
+        required: false
+        default: "0"
 
 # Least-privilege token: this workflow only reads the repo and uploads
 # artifacts.
@@ -217,3 +244,92 @@ jobs:
           name: ${{ env.ARTIFACT_PREFIX }}
           path: ./dist/*
           if-no-files-found: error
+
+  # =====================================================================
+  #  release
+  #
+  #  Opt-in (release: 'true'), push events only. Publishes every built
+  #  PDF as a versioned GitHub release tagged v<YYYY.MM.DD>-r<run-number>
+  #  (unique and chronologically sortable; GitHub marks the newest as
+  #  "Latest release", so `gh release download` without a tag always
+  #  fetches the current PDFs). When release-keep > 0, older releases
+  #  matching the same tag pattern are pruned together with their tags;
+  #  manually created releases with other tag formats are never touched.
+  # =====================================================================
+  release:
+    needs: [discover, package]
+    if: >-
+      inputs.release == 'true' &&
+      github.event_name == 'push' &&
+      needs.discover.outputs.local != 'true'
+    runs-on: ${{ inputs.runs-on }}
+    permissions:
+      contents: write
+    steps:
+      - name: Download all per-CV PDF artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: ${{ env.ARTIFACT_PREFIX }}-*-pdf
+          path: ./dist
+
+      - name: Flatten release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ./assets
+          find ./dist -type f -name '*.pdf' -exec cp -v {} ./assets/ \;
+          if [ -z "$(ls -A ./assets)" ]; then
+            echo "::error::No PDFs found to release."
+            exit 1
+          fi
+
+      - name: Create versioned release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          COMMIT_SUBJECT: ${{ github.event.head_commit.message }}
+        run: |
+          set -euo pipefail
+          TAG="v$(date +%Y.%m.%d)-r${GITHUB_RUN_NUMBER}"
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          TITLE="CVs $(date +%Y-%m-%d) ($SHORT_SHA)"
+          SUBJECT="$(printf '%s\n' "$COMMIT_SUBJECT" | head -n1)"
+          {
+            echo "Built from $GITHUB_SHA"
+            echo
+            echo "Commit: $SUBJECT"
+            echo
+            echo "Variants:"
+            for f in ./assets/*.pdf; do
+              echo "- $(basename "$f")"
+            done
+          } > notes.md
+          gh release create "$TAG" ./assets/*.pdf \
+            --target "$GITHUB_SHA" \
+            --title "$TITLE" \
+            --notes-file notes.md
+          echo "Published release $TAG"
+
+      - name: Prune old releases
+        if: inputs.release-keep != '0'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          KEEP: ${{ inputs.release-keep }}
+        run: |
+          set -euo pipefail
+          # Only releases created by this workflow (v<YYYY.MM.DD>-r<N>
+          # tags) are considered; newest first by creation date.
+          mapfile -t tags < <(
+            gh release list --limit 1000 \
+              --json tagName,createdAt \
+              --jq 'sort_by(.createdAt) | reverse | .[].tagName' \
+            | grep -E '^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}-r[0-9]+$' || true
+          )
+          echo "Found ${#tags[@]} workflow release(s); keeping newest $KEEP."
+          for ((i = KEEP; i < ${#tags[@]}; i++)); do
+            echo "Pruning release ${tags[$i]}"
+            gh release delete "${tags[$i]}" --cleanup-tag --yes
+          done
