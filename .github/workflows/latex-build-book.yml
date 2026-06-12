@@ -1,0 +1,331 @@
+---
+# Reusable workflow: build the print-ready PDF (and optionally the EPUB 3
+# edition) of a LaTeX book in a TeX Live container, then combine the
+# outputs into a single user-facing artifact.
+#
+# Consume from another repository:
+#
+#   jobs:
+#     build:
+#       uses: stklug84/github-workflows/.github/workflows/latex-build-book.yml@v1.3.0
+#       with:
+#         book-title: "My Book"
+#
+# Engine/aux-tool detection, PDF compilation, EPUB build, and EPUB
+# validation all live in the stklug84/actions/texlive/* composite
+# actions; this workflow only wires them together. The caller SHOULD set
+# a concurrency group and only needs `contents: read`. The EPUB jobs can
+# be toggled off via `run-epub` for PDF-only books.
+name: Build LaTeX Book
+
+on:  # yamllint disable-line rule:truthy
+  workflow_call:
+    inputs:
+      book-title:
+        description: "Book title patched into the EPUB metadata."
+        type: string
+        required: true
+      engine:
+        description: >-
+          LaTeX toolchain (latexmk, pdflatex, latex-chain). Leave empty
+          to use the detect action's default.
+        type: string
+        required: false
+        default: ""
+      local:
+        description: >-
+          Set to 'true' when running locally via gh act (skips artifact
+          upload). Auto-detected when the ACT environment variable is set.
+        type: string
+        required: false
+        default: "false"
+      main-tex:
+        description: >-
+          Main document basename without .tex. Leave empty to
+          auto-detect via \documentclass.
+        type: string
+        required: false
+        default: ""
+      texlive-image:
+        description: "TeX Live container image for the build jobs."
+        type: string
+        required: false
+        default: "texlive/texlive:latest"
+      run-epub:
+        description: "Build and validate the EPUB 3 edition."
+        type: boolean
+        required: false
+        default: true
+      epub-config:
+        description: "tex4ebook configuration file."
+        type: string
+        required: false
+        default: "config/ebook.cfg"
+      epub-build-file:
+        description: "tex4ebook build (.mk4) file."
+        type: string
+        required: false
+        default: "config/ebook.mk4"
+      stylesheet:
+        description: "CSS stylesheet bundled into the EPUB."
+        type: string
+        required: false
+        default: ""
+      images-dir:
+        description: "Directory with images to bundle into the EPUB."
+        type: string
+        required: false
+        default: "images"
+      rasterize-pdf:
+        description: >-
+          Optional vector PDF to rasterize to a 300 dpi PNG for the
+          EPUB. Leave empty to skip rasterization.
+        type: string
+        required: false
+        default: ""
+      fonts:
+        description: >-
+          Newline-separated OTF filenames (resolved from TeX Live via
+          kpsewhich) to embed into the EPUB.
+        type: string
+        required: false
+        default: ""
+      font-license:
+        description: "License file bundled alongside the embedded fonts."
+        type: string
+        required: false
+        default: ""
+      epubcheck-version:
+        description: "Pinned epubcheck release used for validation."
+        type: string
+        required: false
+        default: "5.1.0"
+      epubcheck-filter-file:
+        description: >-
+          Optional filter file downgrading cosmetic epubcheck findings
+          to USAGE.
+        type: string
+        required: false
+        default: ""
+      artifact-name:
+        description: >-
+          Name of the combined user-facing artifact. Defaults to the
+          calling repository name.
+        type: string
+        required: false
+        default: ""
+      runs-on:
+        description: "Runner label for all jobs."
+        type: string
+        required: false
+        default: "ubuntu-latest"
+
+# Least-privilege token: this workflow only reads the repo and uploads
+# artifacts.
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # User-facing artifact name; defaults to the calling repository name
+  # so the workflow is fully portable.
+  ARTIFACT_NAME: >-
+    ${{ inputs.artifact-name != '' && inputs.artifact-name
+        || github.event.repository.name }}
+
+jobs:
+  # =====================================================================
+  #  detect
+  #
+  #  Resolves workflow inputs (engine, local-mode flag, main document
+  #  basename) and scans the main .tex for auxiliary toolchain
+  #  requirements (bibtex/biblatex, makeindex, glossaries, psfrag).
+  #  The logic lives in the stklug84/actions/texlive/detect composite
+  #  action; all downstream jobs consume the results as
+  #  `needs.detect.outputs.*` so detection happens in exactly one place.
+  # =====================================================================
+  detect:
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 2
+    outputs:
+      main: ${{ steps.detect.outputs.main }}
+      local: ${{ steps.detect.outputs.local }}
+      engine: ${{ steps.detect.outputs.engine }}
+      has_bib: ${{ steps.detect.outputs.has_bib }}
+      has_biblatex: ${{ steps.detect.outputs.has_biblatex }}
+      has_index: ${{ steps.detect.outputs.has_index }}
+      has_glossaries: ${{ steps.detect.outputs.has_glossaries }}
+      has_psfrag: ${{ steps.detect.outputs.has_psfrag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # On non-dispatch caller events these inputs are empty strings and
+      # the action falls back to its default engine / ACT auto-detect /
+      # \documentclass auto-detection.
+      - name: Detect build configuration
+        id: detect
+        uses: stklug84/actions/texlive/detect@d64bcd7b0bd89fd97f692e3178f2e897e94deaf5  # v2
+        with:
+          engine: ${{ inputs.engine }}
+          local: ${{ inputs.local }}
+          main-tex: ${{ inputs.main-tex }}
+
+  # =====================================================================
+  #  build
+  #
+  #  Compiles the print-ready PDF using the engine selected by `detect`
+  #  via the shared build-pdf composite action. latexmk drives pdflatex
+  #  per the repo's latexmkrc; pdflatex produces PDF directly;
+  #  latex-chain runs latex -> dvips -> ps2pdf and is the only engine
+  #  that supports psfrag. PDF verification is built into the action.
+  # =====================================================================
+  build:
+    needs: detect
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 15
+    container:
+      image: ${{ inputs.texlive-image }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build PDF
+        uses: stklug84/actions/texlive/build-pdf@d64bcd7b0bd89fd97f692e3178f2e897e94deaf5  # v2
+        with:
+          main: ${{ needs.detect.outputs.main }}
+          engine: ${{ needs.detect.outputs.engine }}
+          has-bib: ${{ needs.detect.outputs.has_bib }}
+          has-biblatex: ${{ needs.detect.outputs.has_biblatex }}
+          has-index: ${{ needs.detect.outputs.has_index }}
+          has-glossaries: ${{ needs.detect.outputs.has_glossaries }}
+          has-psfrag: ${{ needs.detect.outputs.has_psfrag }}
+
+      # Intermediate PDF artifact; combined with the EPUB into the final
+      # user-facing artifact by the package job.
+      - name: Upload PDF artifact
+        if: needs.detect.outputs.local != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.ARTIFACT_NAME }}-pdf-intermediate
+          path: ${{ needs.detect.outputs.main }}.pdf
+          if-no-files-found: error
+
+      - name: Upload build logs on failure
+        if: failure() && needs.detect.outputs.local != 'true'
+        uses: stklug84/actions/texlive/upload-build-logs@d64bcd7b0bd89fd97f692e3178f2e897e94deaf5  # v2
+        with:
+          artifact-name: ${{ env.ARTIFACT_NAME }}-build-logs
+          paths: |
+            *.log
+            *.blg
+            *.ilg
+
+  # =====================================================================
+  #  build-epub
+  #
+  #  Builds the EPUB 3 edition via the shared texlive/build-epub
+  #  composite action (font staging, optional rasterization,
+  #  bounding-box sidecars, tex4ebook, asset/OPF patching) and
+  #  validates + cleans the workspace via texlive/validate-epub. Runs
+  #  in parallel with `build`; toggled per repo via `run-epub`.
+  # =====================================================================
+  build-epub:
+    needs: detect
+    if: ${{ inputs.run-epub }}
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 25
+    container:
+      image: ${{ inputs.texlive-image }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build EPUB
+        uses: stklug84/actions/texlive/build-epub@d64bcd7b0bd89fd97f692e3178f2e897e94deaf5  # v2
+        with:
+          main: ${{ needs.detect.outputs.main }}
+          config: ${{ inputs.epub-config }}
+          build-file: ${{ inputs.epub-build-file }}
+          images-dir: ${{ inputs.images-dir }}
+          rasterize-pdf: ${{ inputs.rasterize-pdf }}
+          fonts: ${{ inputs.fonts }}
+          font-license: ${{ inputs.font-license }}
+          stylesheet: ${{ inputs.stylesheet }}
+          book-title: ${{ inputs.book-title }}
+
+      # Validates with a pinned epubcheck release (optionally filtered
+      # via epubcheck-filter-file), then strips every build by-product
+      # from the workspace (git clean) while preserving the validated
+      # EPUB. The cleanup only runs after a successful validation, so a
+      # failed epubcheck leaves the full workspace intact for the
+      # post-mortem log upload below.
+      - name: Validate EPUB and clean workspace
+        uses: stklug84/actions/texlive/validate-epub@d64bcd7b0bd89fd97f692e3178f2e897e94deaf5  # v2
+        with:
+          main: ${{ needs.detect.outputs.main }}
+          epubcheck-version: ${{ inputs.epubcheck-version }}
+          filter-file: ${{ inputs.epubcheck-filter-file }}
+
+      # Intermediate EPUB artifact; combined with the PDF into the final
+      # user-facing artifact by the package job.
+      - name: Upload EPUB artifact
+        if: needs.detect.outputs.local != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.ARTIFACT_NAME }}-epub-intermediate
+          path: ${{ needs.detect.outputs.main }}.epub
+          if-no-files-found: error
+
+      - name: Upload EPUB build logs on failure
+        if: failure() && needs.detect.outputs.local != 'true'
+        uses: stklug84/actions/texlive/upload-build-logs@d64bcd7b0bd89fd97f692e3178f2e897e94deaf5  # v2
+        with:
+          artifact-name: ${{ env.ARTIFACT_NAME }}-build-epub-logs
+          paths: |
+            *.log
+            *.4tc
+            *.4ct
+            *.idv
+            *.lg
+            *.tmp
+            *.xref
+
+  # =====================================================================
+  #  package
+  #
+  #  Combines the PDF (from `build`) and, when run-epub is enabled, the
+  #  EPUB (from `build-epub`) into a single user-facing artifact. This
+  #  is the artifact a downstream consumer should fetch. Runs even when
+  #  build-epub is skipped (run-epub: false), but never after a failure.
+  # =====================================================================
+  package:
+    needs: [detect, build, build-epub]
+    if: >-
+      ${{ !failure() && !cancelled()
+          && needs.detect.outputs.local != 'true' }}
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - name: Download PDF artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ env.ARTIFACT_NAME }}-pdf-intermediate
+          path: ./dist
+
+      - name: Download EPUB artifact
+        if: ${{ inputs.run-epub }}
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ env.ARTIFACT_NAME }}-epub-intermediate
+          path: ./dist
+
+      - name: List combined artifact contents
+        shell: bash
+        run: ls -la ./dist
+
+      - name: Upload combined artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ./dist/*
+          if-no-files-found: error

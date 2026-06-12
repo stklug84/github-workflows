@@ -1,0 +1,219 @@
+---
+# Reusable workflow: matrix-build every LaTeX CV variant discovered under
+# `root` (default cvs/*/) inside a digest-pinned TeX Live container, then
+# combine all PDFs into a single artifact named after the calling repo.
+#
+# Consume from another repository:
+#
+#   jobs:
+#     build:
+#       uses: stklug84/github-workflows/.github/workflows/latex-build-cv.yml@v1.3.0
+#       with:
+#         texinputs: ".:../..:../../styles:../../images:"
+#
+# The TeX Live container image is resolved from the caller's Dockerfile
+# (see `texlive-dockerfile`), so Dependabot's docker ecosystem in the
+# calling repo keeps the digest pin current. The caller SHOULD set a
+# concurrency group and only needs `contents: read`.
+name: Build LaTeX CVs
+
+on:  # yamllint disable-line rule:truthy
+  workflow_call:
+    inputs:
+      texinputs:
+        description: >-
+          TEXINPUTS search path used while compiling each variant,
+          resolved relative to the variant directory. The default matches
+          the conventional layout: shared assets (personal-info.tex,
+          styles/*.sty, images/) at the repo root, variants in
+          <root>/<name>/.
+        type: string
+        required: false
+        default: ".:../..:../../styles:../../images:"
+      root:
+        description: "Directory scanned for CV variants (one subdir each)."
+        type: string
+        required: false
+        default: "cvs"
+      default-engine:
+        description: "Engine used for variants without an .engine file."
+        type: string
+        required: false
+        default: "latexmk"
+      local:
+        description: >-
+          Set to 'true' when running locally via gh act (skips artifact
+          upload). Auto-detected when the ACT environment variable is set.
+        type: string
+        required: false
+        default: "false"
+      texlive-dockerfile:
+        description: >-
+          Path (in the calling repo) to the Dockerfile whose FROM line
+          pins the TeX Live container image.
+        type: string
+        required: false
+        default: ".github/docker/texlive/Dockerfile"
+      runs-on:
+        description: "Runner label for all jobs."
+        type: string
+        required: false
+        default: "ubuntu-latest"
+
+# Least-privilege token: this workflow only reads the repo and uploads
+# artifacts.
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # Dynamic artifact-name prefix. Never hardcoded; derived from the
+  # calling repository name so the workflow is fully portable.
+  # Note: artifact names may not contain '/'. Repo names usually don't either.
+  ARTIFACT_PREFIX: ${{ github.event.repository.name }}
+
+jobs:
+  # =====================================================================
+  #  discover
+  #
+  #  Delegates variant discovery to the central
+  #  stklug84/actions/texlive/discover-variants composite action, which
+  #  scans <root>/*/ and emits a JSON matrix consumed by the `build`
+  #  job. No filenames are hardcoded in this workflow.
+  # =====================================================================
+  discover:
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 2
+    outputs:
+      matrix: ${{ steps.scan.outputs.matrix }}
+      local: ${{ steps.cfg.outputs.local }}
+      texlive-image: ${{ steps.texlive.outputs.image }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Resolve pinned TeX Live image
+        id: texlive
+        shell: bash
+        env:
+          DOCKERFILE: ${{ inputs.texlive-dockerfile }}
+        run: |
+          set -euo pipefail
+          # Single source of truth for the TeX Live container image. The
+          # Dockerfile exists so Dependabot (docker ecosystem) can keep
+          # the digest pin current; we only consume its FROM reference.
+          image="$(awk '/^FROM /{print $2; exit}' "$DOCKERFILE")"
+          if [ -z "$image" ]; then
+            echo "::error::No FROM line found in $DOCKERFILE"
+            exit 1
+          fi
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          echo "Resolved TeX Live image: $image"
+
+      - name: Resolve local mode
+        id: cfg
+        shell: bash
+        env:
+          LOCAL_IN: ${{ inputs.local }}
+        run: |
+          set -euo pipefail
+          # nektos/act exports ACT=true; treat that as implicit local mode.
+          LOCAL="${LOCAL_IN:-${ACT:+true}}"
+          LOCAL="${LOCAL:-false}"
+          echo "local=$LOCAL" >> "$GITHUB_OUTPUT"
+          echo "Resolved local=$LOCAL (ACT=${ACT:-unset})"
+
+      - name: Discover CV variants
+        id: scan
+        uses: stklug84/actions/texlive/discover-variants@6dcd727c4b2eeea225cd8e8d1ab1dfe593da8b4f  # v1.3.0
+        with:
+          root: ${{ inputs.root }}
+          default-engine: ${{ inputs.default-engine }}
+
+  # =====================================================================
+  #  build
+  #
+  #  Matrix build, one leg per discovered CV variant. The matrix entry
+  #  is pure data (name, dir, main, engine, aux-tool flags); all build
+  #  behavior lives in the central stklug84/actions/texlive/build-pdf
+  #  composite action. Adding a new engine or aux tool means editing
+  #  that action, never this workflow.
+  # =====================================================================
+  build:
+    needs: discover
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 15
+    container:
+      # Digest-pinned via the caller's Dockerfile (texlive-dockerfile
+      # input); kept current by the caller's Dependabot docker ecosystem.
+      image: ${{ needs.discover.outputs.texlive-image }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build ${{ matrix.name }} (${{ matrix.engine }})
+        uses: stklug84/actions/texlive/build-pdf@6dcd727c4b2eeea225cd8e8d1ab1dfe593da8b4f  # v1.3.0
+        with:
+          working-directory: ${{ matrix.dir }}
+          main: ${{ matrix.main }}
+          engine: ${{ matrix.engine }}
+          # Resolve shared assets from inside <root>/<name>/ (see the
+          # texinputs input description for the conventional layout).
+          texinputs: ${{ inputs.texinputs }}
+          has-bib: ${{ matrix.has_bib }}
+          has-biblatex: ${{ matrix.has_biblatex }}
+          has-index: ${{ matrix.has_index }}
+          has-glossaries: ${{ matrix.has_glossaries }}
+          has-psfrag: ${{ matrix.has_psfrag }}
+
+      - name: Upload PDF artifact
+        if: needs.discover.outputs.local != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.ARTIFACT_PREFIX }}-${{ matrix.name }}-pdf
+          path: ${{ matrix.dir }}/${{ matrix.main }}.pdf
+          if-no-files-found: error
+
+      - name: Upload build logs on failure
+        if: failure() && needs.discover.outputs.local != 'true'
+        uses: stklug84/actions/texlive/upload-build-logs@6dcd727c4b2eeea225cd8e8d1ab1dfe593da8b4f  # v1.3.0
+        with:
+          artifact-name: ${{ env.ARTIFACT_PREFIX }}-${{ matrix.name }}-logs
+          paths: |
+            ${{ matrix.dir }}/*.log
+            ${{ matrix.dir }}/*.blg
+            ${{ matrix.dir }}/*.ilg
+
+  # =====================================================================
+  #  package
+  #
+  #  Collects every per-CV PDF artifact (<repo>-<name>-pdf) into a
+  #  single combined artifact named after the repo. Each PDF is placed
+  #  in its own subfolder (the artifact name) to avoid collisions.
+  # =====================================================================
+  package:
+    needs: [discover, build]
+    if: needs.discover.outputs.local != 'true'
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - name: Download all per-CV PDF artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: ${{ env.ARTIFACT_PREFIX }}-*-pdf
+          path: ./dist
+
+      - name: List combined artifact contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          find ./dist -type f -print
+
+      - name: Upload combined artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.ARTIFACT_PREFIX }}
+          path: ./dist/*
+          if-no-files-found: error
