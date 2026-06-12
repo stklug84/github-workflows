@@ -7,8 +7,9 @@ Central, reusable GitHub Actions workflows for this account.
 
 > **Note:** Reusable workflows must live flat in `.github/workflows/` (GitHub
 > does not support subdirectories for them), so files are grouped by filename
-> prefix (`jekyll-*`, `misc-*`). The shared Jekyll build steps are provided as
-> composite actions from [`stklug84/actions`](https://github.com/stklug84/actions).
+> prefix (`jekyll-*`, `latex-*`, `misc-*`). The shared Jekyll and TeX Live
+> build steps are provided as composite actions from
+> [`stklug84/actions`](https://github.com/stklug84/actions).
 
 ## `jekyll-deploy-pages.yml` — build & deploy a Jekyll site to GitHub Pages
 
@@ -39,7 +40,7 @@ concurrency:
 
 jobs:
   deploy:
-    uses: stklug84/github-workflows/.github/workflows/jekyll-deploy-pages.yml@v1.2.0
+    uses: stklug84/github-workflows/.github/workflows/jekyll-deploy-pages.yml@v1.5.0
 ```
 
 The caller **must** declare the `permissions` block above — reusable workflows
@@ -100,7 +101,7 @@ concurrency:
 
 jobs:
   validate:
-    uses: stklug84/github-workflows/.github/workflows/jekyll-validate-pages.yml@v1.2.0
+    uses: stklug84/github-workflows/.github/workflows/jekyll-validate-pages.yml@v1.5.0
 ```
 
 > **Branch protection:** the gating check is exposed as `<caller-job> / build`
@@ -150,7 +151,7 @@ concurrency:
 
 jobs:
   preview:
-    uses: stklug84/github-workflows/.github/workflows/jekyll-deploy-preview.yml@v1.2.0
+    uses: stklug84/github-workflows/.github/workflows/jekyll-deploy-preview.yml@v1.5.0
     with:
       previews-repo: owner/my-previews
       preview-domain: https://example.com
@@ -197,7 +198,7 @@ concurrency:
 
 jobs:
   comment:
-    uses: stklug84/github-workflows/.github/workflows/misc-pr-preview-comment.yml@v1.2.0
+    uses: stklug84/github-workflows/.github/workflows/misc-pr-preview-comment.yml@v1.5.0
     with:
       preview-domain: https://example.com
 ```
@@ -217,6 +218,9 @@ Discovers every CV variant under `<root>/*/` (via
 `stklug84/actions/texlive/discover-variants`), matrix-builds each one inside
 the caller's digest-pinned TeX Live container, and combines all PDFs into a
 single artifact named after the calling repo. No filenames are hardcoded.
+Optionally (`release: "true"`) publishes the PDFs as a versioned GitHub
+release (tag `v<YYYY.MM.DD>-r<run-number>`) on push events, pruned to the
+`release-keep` newest releases.
 
 ### Usage
 
@@ -242,7 +246,7 @@ concurrency:
 
 jobs:
   build:
-    uses: stklug84/github-workflows/.github/workflows/latex-build-cv.yml@v1.3.0
+    uses: stklug84/github-workflows/.github/workflows/latex-build-cv.yml@v1.5.0
     with:
       texinputs: ".:../..:../../styles:../../images:"
       local: ${{ inputs.local }}
@@ -258,9 +262,13 @@ jobs:
 | `local`              | `false`                              | gh-act local mode (skips artifact upload).           |
 | `texlive-dockerfile` | `.github/docker/texlive/Dockerfile`  | Caller file whose `FROM` pins the TeX Live image.    |
 | `runs-on`            | `ubuntu-latest`                      | Runner label for all jobs.                           |
+| `release`            | `false`                              | Publish PDFs as a versioned GitHub release (push only). |
+| `release-keep`       | `0`                                  | Keep only the N newest releases (`0` = keep all).    |
 
 The TeX Live image is resolved from the caller's Dockerfile, so the caller's
-Dependabot (docker ecosystem) keeps the digest pin current.
+Dependabot (docker ecosystem) keeps the digest pin current. With
+`release: "true"` the caller must grant `contents: write` on the calling
+job; otherwise `contents: read` suffices.
 
 ## `latex-build-book.yml` — LaTeX book PDF + EPUB
 
@@ -273,7 +281,7 @@ EPUB 3 edition, then combines both into a single user-facing artifact.
 ```yaml
 jobs:
   build:
-    uses: stklug84/github-workflows/.github/workflows/latex-build-book.yml@v1.3.0
+    uses: stklug84/github-workflows/.github/workflows/latex-build-book.yml@v1.5.0
     with:
       book-title: "My Book"
       rasterize-pdf: images/map.pdf
@@ -289,6 +297,7 @@ jobs:
 | `engine`                | `""`                   | latexmk / pdflatex / latex-chain (empty → default).   |
 | `local`                 | `false`                | gh-act local mode (skips artifact upload).            |
 | `main-tex`              | `""`                   | Main basename (empty → `\documentclass` auto-detect). |
+| `eps-from-pdf`          | `""`                   | PDF graphics converted to `.eps` for latex-chain (DVI). |
 | `texlive-image`         | `texlive/texlive:latest` | Container image for the build jobs.                 |
 | `run-epub`              | `true`                 | Toggle the EPUB build + validation jobs.              |
 | `epub-config`           | `config/ebook.cfg`     | tex4ebook configuration file.                         |
@@ -303,19 +312,14 @@ jobs:
 | `artifact-name`         | `""`                   | Combined artifact name (empty → repo name).           |
 | `runs-on`               | `ubuntu-latest`        | Runner label for all jobs.                            |
 
-### Private repo access (one-time)
+## Versioning
 
-Because this repo is **private**, other private repos cannot call its workflows
-until access is shared:
-
-> **Settings → Actions → General → Access →**
-> *"Accessible from repositories owned by the user/organization"*
-
-### Versioning
-
-Callers should pin to a tag:
+This repo is **public**, so its workflows are callable from any repository
+without further access configuration. Callers should pin to a tag:
 
 - `@v1` — moving major tag, receives backwards-compatible updates.
-- `@v1.0.0` — exact, fully pinned.
+- `@v1.5.0` — exact, fully pinned.
+- `@<commit-sha>  # v1.5.0` — SHA of the release tag with a version
+  comment, for callers with CodeQL's unpinned-tag query enabled.
 
 Maintainers: on each release, create `vX.Y.Z` and re-point the `vX` major tag.
