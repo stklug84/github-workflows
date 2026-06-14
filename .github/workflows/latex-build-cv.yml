@@ -25,7 +25,7 @@
 # concurrency group and needs `contents: read`, or `contents: write`
 # when releases are enabled.
 #
-# Prebuild artifact handoff (Pattern A): set `prebuild-artifact` to the
+# Prebuild artifact handoff: set `prebuild-artifact` to the
 # name of an artifact uploaded by a separate `generate` job in the caller
 # (wired via `needs: generate`). After this workflow checks out the repo
 # and BEFORE it builds, that artifact is downloaded and extracted into
@@ -100,7 +100,7 @@ on:  # yamllint disable-line rule:truthy
           Optional name of an artifact (uploaded by a separate caller
           `generate` job, wired via `needs: generate`) to download AFTER
           checkout and BEFORE the build. Used to hand generated `.tex`
-          files to the build (Pattern A: prebuild artifact handoff). Empty
+          files to the build. Empty
           (the default) skips the download entirely — a no-op preserving
           the prior behavior for existing callers.
         type: string
@@ -212,7 +212,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      # Prebuild artifact handoff (Pattern A). Runs only when the caller
+      # Prebuild artifact handoff. Runs only when the caller
       # passes a non-empty `prebuild-artifact`; otherwise it is a no-op
       # via the `if:` guard, so existing callers are unaffected. The
       # artifact is extracted relative to `prebuild-into` (default repo

@@ -10,7 +10,7 @@
 # The caller MUST grant the required permissions (contents: read, pages: write,
 # id-token: write) and SHOULD set a "pages" concurrency group. See README.md.
 #
-# Prebuild artifact handoff (Pattern A): set `prebuild-artifact` to the name
+# Prebuild artifact handoff: set `prebuild-artifact` to the name
 # of an artifact uploaded by a separate caller `generate` job (wired via
 # `needs: generate`). It is downloaded and extracted into `prebuild-into`
 # (typically `_data`, e.g. a generated `cv.yml`) AFTER checkout + Ruby/Pages
@@ -59,8 +59,8 @@ on:  # yamllint disable-line rule:truthy
           Optional name of an artifact (uploaded by a separate caller
           `generate` job, wired via `needs: generate`) to download BEFORE
           the Jekyll build. Used to hand generated files (e.g. a
-          generated `_data/cv.yml`) to the build (Pattern A: prebuild
-          artifact handoff). Empty (the default) skips the download — a
+          generated `_data/cv.yml`) to the build. Empty (the default)
+          skips the download — a
           no-op preserving prior behavior for existing callers.
         type: string
         required: false
@@ -104,7 +104,7 @@ jobs:
         id: pages
         uses: actions/configure-pages@v6
 
-      # Prebuild artifact handoff (Pattern A). Chosen step order:
+      # Prebuild artifact handoff. Chosen step order:
       #   checkout -> setup ruby -> setup pages -> (download prebuild) -> build
       # The download runs immediately BEFORE jekyll-build so the extracted
       # files (e.g. _data/cv.yml when prebuild-into="_data") are present
