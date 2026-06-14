@@ -173,7 +173,7 @@ jobs:
       # \documentclass auto-detection.
       - name: Detect build configuration
         id: detect
-        uses: stklug84/actions/texlive/detect@4fedd60e6723f81cf66c4fc99d85cf40dc8db515  # v2.1.0
+        uses: stklug84/actions/texlive/detect@cb91fdcefccd47f24449549389216a5981a6455c  # v2.2.1
         with:
           engine: ${{ inputs.engine }}
           local: ${{ inputs.local }}
@@ -199,7 +199,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Build PDF
-        uses: stklug84/actions/texlive/build-pdf@4fedd60e6723f81cf66c4fc99d85cf40dc8db515  # v2.1.0
+        uses: stklug84/actions/texlive/build-pdf@cb91fdcefccd47f24449549389216a5981a6455c  # v2.2.1
         with:
           main: ${{ needs.detect.outputs.main }}
           engine: ${{ needs.detect.outputs.engine }}
@@ -222,7 +222,7 @@ jobs:
 
       - name: Upload build logs on failure
         if: failure() && needs.detect.outputs.local != 'true'
-        uses: stklug84/actions/texlive/upload-build-logs@4fedd60e6723f81cf66c4fc99d85cf40dc8db515  # v2.1.0
+        uses: stklug84/actions/texlive/upload-build-logs@cb91fdcefccd47f24449549389216a5981a6455c  # v2.2.1
         with:
           artifact-name: ${{ env.ARTIFACT_NAME }}-build-logs
           paths: |
@@ -251,7 +251,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Build EPUB
-        uses: stklug84/actions/texlive/build-epub@4fedd60e6723f81cf66c4fc99d85cf40dc8db515  # v2.1.0
+        uses: stklug84/actions/texlive/build-epub@cb91fdcefccd47f24449549389216a5981a6455c  # v2.2.1
         with:
           main: ${{ needs.detect.outputs.main }}
           config: ${{ inputs.epub-config }}
@@ -270,7 +270,7 @@ jobs:
       # failed epubcheck leaves the full workspace intact for the
       # post-mortem log upload below.
       - name: Validate EPUB and clean workspace
-        uses: stklug84/actions/texlive/validate-epub@4fedd60e6723f81cf66c4fc99d85cf40dc8db515  # v2.1.0
+        uses: stklug84/actions/texlive/validate-epub@cb91fdcefccd47f24449549389216a5981a6455c  # v2.2.1
         with:
           main: ${{ needs.detect.outputs.main }}
           epubcheck-version: ${{ inputs.epubcheck-version }}
@@ -288,7 +288,7 @@ jobs:
 
       - name: Upload EPUB build logs on failure
         if: failure() && needs.detect.outputs.local != 'true'
-        uses: stklug84/actions/texlive/upload-build-logs@4fedd60e6723f81cf66c4fc99d85cf40dc8db515  # v2.1.0
+        uses: stklug84/actions/texlive/upload-build-logs@cb91fdcefccd47f24449549389216a5981a6455c  # v2.2.1
         with:
           artifact-name: ${{ env.ARTIFACT_NAME }}-build-epub-logs
           paths: |
