@@ -12,7 +12,7 @@
 # `<caller-job> / build`). All other jobs are advisory (continue-on-error) and
 # can be toggled off per repo via the run-* inputs.
 #
-# Prebuild artifact handoff (Pattern A): set `prebuild-artifact` to the name
+# Prebuild artifact handoff: set `prebuild-artifact` to the name
 # of an artifact uploaded by a separate caller `generate` job (wired via
 # `needs: generate`). It is downloaded into `prebuild-into` (typically
 # `_data`, e.g. a generated `cv.yml`) BEFORE the Jekyll build, so PR
@@ -110,8 +110,8 @@ on:  # yamllint disable-line rule:truthy
           Optional name of an artifact (uploaded by a separate caller
           `generate` job, wired via `needs: generate`) to download BEFORE
           the Jekyll build, so PR validation builds against generated
-          files (e.g. a generated `_data/cv.yml`). Pattern A: prebuild
-          artifact handoff. Empty (the default) skips the download — a
+          files (e.g. a generated `_data/cv.yml`). Empty (the default)
+          skips the download — a
           no-op preserving prior behavior for existing callers.
         type: string
         required: false
@@ -145,7 +145,7 @@ jobs:
         with:
           ruby-version: ${{ inputs.ruby-version }}
 
-      # Prebuild artifact handoff (Pattern A). Chosen step order:
+      # Prebuild artifact handoff. Chosen step order:
       #   checkout -> setup ruby -> (download prebuild) -> build
       # The download runs immediately BEFORE jekyll-build so the extracted
       # files (e.g. _data/cv.yml when prebuild-into="_data") are present
