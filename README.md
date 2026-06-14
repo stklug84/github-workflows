@@ -72,6 +72,8 @@ cache-friendly builds. `ruby/setup-ruby` requires an explicit version, so a
 | `environment-name` | `github-pages`   | Deployment environment name.                                            |
 | `ruby-version`     | `""`             | Ruby version. Empty → resolved from `.ruby-version` / `Gemfile`.         |
 | `checkout-ref`     | `""`             | Optional git ref to build. Defaults to the caller's ref.                 |
+| `prebuild-artifact`| `""`             | Artifact (from a caller `generate` job) downloaded before the build. Empty → no-op. See [Pattern A](#pattern-a-prebuild-artifact-handoff). |
+| `prebuild-into`    | `.`              | Directory the prebuild artifact is extracted into (e.g. `_data`).        |
 
 No secrets are required — GitHub Pages deployment uses the OIDC `id-token`.
 
@@ -124,8 +126,10 @@ jobs:
 | `run-link-check`        | `true`               | Toggle the link-check job.                     |
 | `run-spell-check`       | `true`               | Toggle the spell-check job.                    |
 | `run-yaml-lint`         | `true`               | Toggle the yaml-lint job.                      |
-| `run-actions-lint`      | `true`               | Toggle the actions-lint job.                   |
+| `run-actions-lint`      | `true`               | Toggle the actions-lint job.                  |
 | `run-markdown-lint`     | `true`               | Toggle the markdown-lint job.                  |
+| `prebuild-artifact`     | `""`                 | Artifact (from a caller `generate` job) downloaded before the build. Empty → no-op. See [Pattern A](#pattern-a-prebuild-artifact-handoff). |
+| `prebuild-into`         | `.`                  | Directory the prebuild artifact is extracted into (e.g. `_data`). |
 
 ## `jekyll-deploy-preview.yml` — per-commit preview publishing
 
@@ -264,6 +268,8 @@ jobs:
 | `runs-on`            | `ubuntu-latest`                      | Runner label for all jobs.                           |
 | `release`            | `false`                              | Publish PDFs as a versioned GitHub release (push only). |
 | `release-keep`       | `0`                                  | Keep only the N newest releases (`0` = keep all).    |
+| `prebuild-artifact`  | `""`                                 | Artifact (from a caller `generate` job) downloaded after checkout, before build. Empty → no-op. See [Pattern A](#pattern-a-prebuild-artifact-handoff). |
+| `prebuild-into`      | `.`                                  | Directory the prebuild artifact is extracted into (default repo root). |
 
 The TeX Live image is resolved from the caller's Dockerfile, so the caller's
 Dependabot (docker ecosystem) keeps the digest pin current. With
@@ -311,6 +317,120 @@ jobs:
 | `epubcheck-filter-file` | `""`                   | Optional epubcheck findings filter.                   |
 | `artifact-name`         | `""`                   | Combined artifact name (empty → repo name).           |
 | `runs-on`               | `ubuntu-latest`        | Runner label for all jobs.                            |
+
+## Pattern A: prebuild artifact handoff
+
+`latex-build-cv.yml`, `jekyll-deploy-pages.yml`, and `jekyll-validate-pages.yml`
+support an optional **prebuild artifact handoff**: a separate `generate` job in
+the caller produces files (e.g. generated `.tex` variants or a `_data/cv.yml`),
+uploads them as an artifact, and the reusable workflow downloads that artifact
+**after its own checkout** and **before the build/deploy step**.
+
+Both inputs are optional and default to a no-op (`prebuild-artifact: ""`), so
+existing callers are unaffected:
+
+| Input               | Default | Description                                                       |
+|---------------------|---------|-------------------------------------------------------------------|
+| `prebuild-artifact` | `""`    | Name of the artifact to download. Empty → step skipped (no-op).   |
+| `prebuild-into`     | `.`     | Directory the artifact tree is extracted into (relative to repo). |
+
+The artifact's internal file tree is laid down relative to `prebuild-into`, so
+the artifact must contain files at their final paths.
+
+### LaTeX-CV example
+
+With `prebuild-into: "."` (repo root) the artifact contains generated files
+already under their variant directories — e.g.
+`cvs/photo-2page/cv-experience.tex`, `cvs/photo-2page/personal-info.tex`,
+`cvs/sidebar/cv-experience.tex`, `cvs/sidebar/personal-info.tex`:
+
+```yaml
+name: Build Document
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Generate CV .tex files
+        run: ./scripts/generate-cvs.sh   # writes cvs/<variant>/*.tex
+      - name: Upload generated sources
+        uses: actions/upload-artifact@v7
+        with:
+          name: cv-prebuild
+          path: |
+            cvs/**/cv-experience.tex
+            cvs/**/personal-info.tex
+          if-no-files-found: error
+
+  build:
+    needs: generate
+    uses: stklug84/github-workflows/.github/workflows/latex-build-cv.yml@v1.6.0
+    with:
+      texinputs: ".:../..:../../styles:../../images:"
+      prebuild-artifact: cv-prebuild
+      prebuild-into: "."
+```
+
+### Jekyll example
+
+Here the artifact contains a generated `cv.yml` and is extracted into `_data`,
+so the build sees `_data/cv.yml`:
+
+```yaml
+name: Deploy Jekyll with generated data
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Generate cv.yml
+        run: ./scripts/generate-cv-yml.sh   # writes cv.yml
+      - name: Upload generated data
+        uses: actions/upload-artifact@v7
+        with:
+          name: cv-data
+          path: cv.yml
+          if-no-files-found: error
+
+  deploy:
+    needs: generate
+    uses: stklug84/github-workflows/.github/workflows/jekyll-deploy-pages.yml@v1.6.0
+    with:
+      prebuild-artifact: cv-data
+      prebuild-into: "_data"
+```
+
+The same `prebuild-artifact` / `prebuild-into` inputs work identically for
+`jekyll-validate-pages.yml` (PR validation builds against the generated
+`_data/cv.yml`).
 
 ## Versioning
 
