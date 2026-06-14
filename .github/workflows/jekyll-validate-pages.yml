@@ -11,6 +11,13 @@
 # The `build` job is the meaningful gate (wire it into branch protection as
 # `<caller-job> / build`). All other jobs are advisory (continue-on-error) and
 # can be toggled off per repo via the run-* inputs.
+#
+# Prebuild artifact handoff (Pattern A): set `prebuild-artifact` to the name
+# of an artifact uploaded by a separate caller `generate` job (wired via
+# `needs: generate`). It is downloaded into `prebuild-into` (typically
+# `_data`, e.g. a generated `cv.yml`) BEFORE the Jekyll build, so PR
+# validation builds against the generated data. Both inputs are optional;
+# empty `prebuild-artifact` is a no-op leaving existing callers unaffected.
 name: Validate Jekyll Pages
 
 on:  # yamllint disable-line rule:truthy
@@ -98,6 +105,26 @@ on:  # yamllint disable-line rule:truthy
         type: boolean
         required: false
         default: true
+      prebuild-artifact:
+        description: >-
+          Optional name of an artifact (uploaded by a separate caller
+          `generate` job, wired via `needs: generate`) to download BEFORE
+          the Jekyll build, so PR validation builds against generated
+          files (e.g. a generated `_data/cv.yml`). Pattern A: prebuild
+          artifact handoff. Empty (the default) skips the download — a
+          no-op preserving prior behavior for existing callers.
+        type: string
+        required: false
+        default: ""
+      prebuild-into:
+        description: >-
+          Directory into which `prebuild-artifact` is extracted. For
+          Jekyll the typical value is `_data` and the artifact contains
+          `cv.yml`. Defaults to the repo root ("."). Ignored when
+          `prebuild-artifact` is empty.
+        type: string
+        required: false
+        default: "."
 
 permissions:
   contents: read
@@ -117,6 +144,20 @@ jobs:
         uses: stklug84/actions/ruby/setup-ruby-bundler@2b736c4bde21265ae7838370be2753d973bfada0  # v1
         with:
           ruby-version: ${{ inputs.ruby-version }}
+
+      # Prebuild artifact handoff (Pattern A). Chosen step order:
+      #   checkout -> setup ruby -> (download prebuild) -> build
+      # The download runs immediately BEFORE jekyll-build so the extracted
+      # files (e.g. _data/cv.yml when prebuild-into="_data") are present
+      # when Jekyll reads them. No-op when prebuild-artifact is empty
+      # (existing callers unaffected). Pinned to @v8 to match the
+      # download-artifact major used elsewhere in this workflow.
+      - name: Download prebuild artifact
+        if: inputs.prebuild-artifact != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.prebuild-artifact }}
+          path: ${{ inputs.prebuild-into }}
 
       - name: Build with Jekyll (Bundler)
         uses: stklug84/actions/jekyll/jekyll-build@2b736c4bde21265ae7838370be2753d973bfada0  # v1

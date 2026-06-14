@@ -24,6 +24,15 @@
 # calling repo keeps the digest pin current. The caller SHOULD set a
 # concurrency group and needs `contents: read`, or `contents: write`
 # when releases are enabled.
+#
+# Prebuild artifact handoff (Pattern A): set `prebuild-artifact` to the
+# name of an artifact uploaded by a separate `generate` job in the caller
+# (wired via `needs: generate`). After this workflow checks out the repo
+# and BEFORE it builds, that artifact is downloaded and extracted into
+# `prebuild-into` (default repo root), so generated `.tex` files can
+# override or supply files for the build. Both inputs are optional and
+# default to a no-op (empty `prebuild-artifact`), so existing callers are
+# unaffected.
 name: Build LaTeX CVs
 
 on:  # yamllint disable-line rule:truthy
@@ -86,6 +95,28 @@ on:  # yamllint disable-line rule:truthy
         type: string
         required: false
         default: "0"
+      prebuild-artifact:
+        description: >-
+          Optional name of an artifact (uploaded by a separate caller
+          `generate` job, wired via `needs: generate`) to download AFTER
+          checkout and BEFORE the build. Used to hand generated `.tex`
+          files to the build (Pattern A: prebuild artifact handoff). Empty
+          (the default) skips the download entirely — a no-op preserving
+          the prior behavior for existing callers.
+        type: string
+        required: false
+        default: ""
+      prebuild-into:
+        description: >-
+          Directory into which `prebuild-artifact` is extracted (default
+          repo root, "."). The artifact's internal file tree is laid down
+          relative to this path, so the artifact should contain files at
+          their final repo-relative locations (see the EXPECTED ARTIFACT
+          LAYOUT comment in the `build` job). Ignored when
+          `prebuild-artifact` is empty.
+        type: string
+        required: false
+        default: "."
 
 # Least-privilege token: this workflow only reads the repo and uploads
 # artifacts.
@@ -180,6 +211,30 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      # Prebuild artifact handoff (Pattern A). Runs only when the caller
+      # passes a non-empty `prebuild-artifact`; otherwise it is a no-op
+      # via the `if:` guard, so existing callers are unaffected. The
+      # artifact is extracted relative to `prebuild-into` (default repo
+      # root ".") AFTER checkout and BEFORE the build, so generated files
+      # override / supply build inputs.
+      #
+      # EXPECTED ARTIFACT LAYOUT (prebuild-into="."): the artifact's
+      # internal file tree is extracted relative to the repo root, so it
+      # must contain files already under their variant directories, e.g.:
+      #     cvs/photo-2page/cv-experience.tex
+      #     cvs/photo-2page/personal-info.tex
+      #     cvs/sidebar/cv-experience.tex
+      #     cvs/sidebar/personal-info.tex
+      # (i.e. one generated copy per variant, at the same paths the build
+      # reads them from). download-artifact is pinned to @v8 to match the
+      # package/release jobs below.
+      - name: Download prebuild artifact
+        if: inputs.prebuild-artifact != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.prebuild-artifact }}
+          path: ${{ inputs.prebuild-into }}
 
       - name: Build ${{ matrix.name }} (${{ matrix.engine }})
         uses: stklug84/actions/texlive/build-pdf@6dcd727c4b2eeea225cd8e8d1ab1dfe593da8b4f  # v1.3.0

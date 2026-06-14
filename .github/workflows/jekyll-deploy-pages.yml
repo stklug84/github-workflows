@@ -9,6 +9,14 @@
 #
 # The caller MUST grant the required permissions (contents: read, pages: write,
 # id-token: write) and SHOULD set a "pages" concurrency group. See README.md.
+#
+# Prebuild artifact handoff (Pattern A): set `prebuild-artifact` to the name
+# of an artifact uploaded by a separate caller `generate` job (wired via
+# `needs: generate`). It is downloaded and extracted into `prebuild-into`
+# (typically `_data`, e.g. a generated `cv.yml`) AFTER checkout + Ruby/Pages
+# setup and BEFORE `jekyll-build`, so the generated data is present when
+# Jekyll runs. Both inputs are optional; empty `prebuild-artifact` is a no-op
+# and leaves existing callers unaffected.
 name: Deploy Jekyll to GitHub Pages
 
 on:  # yamllint disable-line rule:truthy
@@ -46,6 +54,26 @@ on:  # yamllint disable-line rule:truthy
         type: string
         required: false
         default: ""
+      prebuild-artifact:
+        description: >-
+          Optional name of an artifact (uploaded by a separate caller
+          `generate` job, wired via `needs: generate`) to download BEFORE
+          the Jekyll build. Used to hand generated files (e.g. a
+          generated `_data/cv.yml`) to the build (Pattern A: prebuild
+          artifact handoff). Empty (the default) skips the download — a
+          no-op preserving prior behavior for existing callers.
+        type: string
+        required: false
+        default: ""
+      prebuild-into:
+        description: >-
+          Directory into which `prebuild-artifact` is extracted. For
+          Jekyll the typical value is `_data` and the artifact contains
+          `cv.yml`. Defaults to the repo root ("."). Ignored when
+          `prebuild-artifact` is empty.
+        type: string
+        required: false
+        default: "."
 
 # Reusable workflows do not inherit the caller's permissions block; they must
 # declare their own. The caller still has to grant at least these scopes.
@@ -75,6 +103,22 @@ jobs:
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v6
+
+      # Prebuild artifact handoff (Pattern A). Chosen step order:
+      #   checkout -> setup ruby -> setup pages -> (download prebuild) -> build
+      # The download runs immediately BEFORE jekyll-build so the extracted
+      # files (e.g. _data/cv.yml when prebuild-into="_data") are present
+      # when Jekyll reads them. Setup steps run first because they only
+      # configure the toolchain and never touch the source tree, so the
+      # generated data is never clobbered. No-op when prebuild-artifact is
+      # empty (existing callers unaffected). Pinned to @v8 to match the
+      # download-artifact major used by the sibling jekyll-* workflows.
+      - name: Download prebuild artifact
+        if: inputs.prebuild-artifact != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.prebuild-artifact }}
+          path: ${{ inputs.prebuild-into }}
 
       - name: Build with Jekyll (Bundler)
         # configure-pages exports the correct baseurl for project sites.
