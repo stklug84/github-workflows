@@ -70,7 +70,7 @@ jobs:
       KEEP_LAST: ${{ inputs.keep-last }}
     steps:
       - name: Checkout source repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -93,12 +93,12 @@ jobs:
           cat _config.yml
 
       - name: Setup Ruby with Bundler
-        uses: stklug84/actions/ruby/setup-ruby-bundler@2b736c4bde21265ae7838370be2753d973bfada0  # v1
+        uses: stklug84/actions/ruby/setup-ruby-bundler@cb91fdcefccd47f24449549389216a5981a6455c  # v1
         with:
           ruby-version: ${{ inputs.ruby-version }}
 
       - name: Build with Jekyll (Bundler)
-        uses: stklug84/actions/jekyll/jekyll-build@2b736c4bde21265ae7838370be2753d973bfada0  # v1
+        uses: stklug84/actions/jekyll/jekyll-build@cb91fdcefccd47f24449549389216a5981a6455c  # v1
         with:
           source: ${{ inputs.source }}
           destination: ${{ inputs.destination }}
@@ -107,7 +107,7 @@ jobs:
         # Trust model: `previews-repo` is a workflow_call input and can only be
         # set in the caller's committed workflow file (write access required).
         # Checked-out content is never executed, only written to and pushed.
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: ${{ inputs.previews-repo }}
           token: ${{ secrets.previews-deploy-token }}
