@@ -31,8 +31,25 @@
 #   concurrency group and needs `contents: read`, or `contents: write`
 #   when releases are enabled.
 #
-#   Prebuild artifact handoff: set `prebuild-artifact` to the
-#   name of an artifact uploaded by a separate `generate` job in the caller
+#   Built-in generation (recommended): set `generate: 'true'` and the
+#   workflow runs a `generate` job that expands the caller's build-matrix
+#   manifest (`generate-manifest`, default data/variants.yml) into the
+#   variant tree under `root` via the stklug84/actions/cv/generate
+#   composite action, hands it to discovery and the build internally, and
+#   needs no `generate` job in the caller:
+#
+#     jobs:
+#       build:
+#         permissions:
+#           contents: write
+#         uses: stklug84/github-workflows/.github/workflows/latex-build-cv.yml@v1.8.0
+#         with:
+#           generate: "true"
+#           texinputs: ".:../../..:../../../styles:../../../images:"
+#           release: "true"
+#
+#   Manual prebuild handoff (legacy): set `prebuild-artifact` to the name
+#   of an artifact uploaded by a separate `generate` job in the caller
 #   (wired via `needs: generate`). After this workflow checks out the repo
 #   and BEFORE it builds, that artifact is downloaded and extracted into
 #   `prebuild-into` (default repo root), so generated `.tex` files can
@@ -102,6 +119,49 @@ on:
         type: string
         required: false
         default: "0"
+      generate:
+        description: >-
+          Set to 'true' to run the built-in `generate` job, which expands
+          a CV build-matrix manifest into the variant tree (via the
+          stklug84/actions/cv/generate composite action) BEFORE discovery
+          and build. The generated tree is handed to the build through the
+          internal prebuild artifact, so the caller needs no `generate`
+          job of its own. When 'false' (the default), the repository is
+          expected to already contain the variant tree under `root`.
+        type: string
+        required: false
+        default: "false"
+      generate-manifest:
+        description: >-
+          Path (in the calling repo) to the build-matrix manifest consumed
+          by the built-in generate job (styles + langs + cvs). Ignored
+          when `generate` is not 'true'.
+        type: string
+        required: false
+        default: "data/variants.yml"
+      generate-templates-dir:
+        description: >-
+          Directory (in the calling repo) of per-style Jinja2 main
+          templates (<style>.tex.j2) used by the built-in generate job.
+          Ignored when `generate` is not 'true'.
+        type: string
+        required: false
+        default: "templates"
+      generate-data-dir:
+        description: >-
+          Directory (in the calling repo) holding the source YAMLs
+          referenced by the manifest. Ignored when `generate` is not
+          'true'.
+        type: string
+        required: false
+        default: "data"
+      generate-main-name:
+        description: >-
+          Basename (without .tex) for every generated leaf main file.
+          Ignored when `generate` is not 'true'.
+        type: string
+        required: false
+        default: "sklug-cv"
       prebuild-artifact:
         description: >-
           Optional name of an artifact (uploaded by a separate caller
@@ -109,7 +169,10 @@ on:
           checkout and BEFORE the build. Used to hand generated `.tex`
           files to the build. Empty
           (the default) skips the download entirely — a no-op preserving
-          the prior behavior for existing callers.
+          the prior behavior for existing callers. When the built-in
+          `generate` job runs (`generate: 'true'`), this workflow sets the
+          prebuild handoff internally and the caller should leave this
+          empty.
         type: string
         required: false
         default: ""
@@ -136,8 +199,53 @@ env:
   # calling repository name so the workflow is fully portable.
   # Note: artifact names may not contain '/'. Repo names usually don't either.
   ARTIFACT_PREFIX: ${{ github.event.repository.name }}
+  # Internal artifact carrying the freshly generated variant tree from
+  # the built-in `generate` job to `discover` and `build`. Scoped per run
+  # so concurrent runs never collide.
+  GENERATED_ARTIFACT: cv-generated-tree-${{ github.run_id }}
 
 jobs:
+  # =====================================================================
+  #  generate
+  #
+  #  Opt-in (generate: 'true'). Expands the caller's build-matrix
+  #  manifest into the variant tree via the central
+  #  stklug84/actions/cv/generate composite action, then uploads that
+  #  tree as an internal artifact consumed by `discover` and `build`.
+  #  All generation logic lives in the composite action, so the caller
+  #  keeps a single thin `uses:` block and needs no generate job.
+  # =====================================================================
+  generate:
+    if: inputs.generate == 'true'
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Generate CV variant tree
+        # TODO(pin): cv/generate ships in the actions release that also
+        # carries the recursive discover-variants scan.sh. Once that
+        # actions PR is merged and tagged, ensure the v2 major alias is
+        # moved to include this action (and SHA-pin below if the repo
+        # convention requires it).
+        uses: stklug84/actions/cv/generate@v2
+        with:
+          manifest: ${{ inputs.generate-manifest }}
+          templates-dir: ${{ inputs.generate-templates-dir }}
+          cvs-root: ${{ inputs.root }}
+          data-dir: ${{ inputs.generate-data-dir }}
+          main-name: ${{ inputs.generate-main-name }}
+
+      - name: Upload generated variant tree
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.GENERATED_ARTIFACT }}
+          path: |
+            ${{ inputs.root }}/**/*.tex
+            ${{ inputs.root }}/**/.engine
+          if-no-files-found: error
+
   # =====================================================================
   #  discover
   #
@@ -147,6 +255,11 @@ jobs:
   #  job. No filenames are hardcoded in this workflow.
   # =====================================================================
   discover:
+    needs: [generate]
+    # Run whether or not the optional `generate` job executed: a skipped
+    # `needs` job would otherwise skip this one too. Proceed unless an
+    # upstream job actually failed or the run was cancelled.
+    if: always() && !failure() && !cancelled()
     runs-on: ${{ inputs.runs-on }}
     timeout-minutes: 2
     outputs:
@@ -156,6 +269,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      # When the built-in generate job ran, lay its tree down at the repo
+      # root so discovery scans the freshly generated variants.
+      - name: Download generated variant tree
+        if: inputs.generate == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ env.GENERATED_ARTIFACT }}
+          path: .
 
       - name: Resolve pinned TeX Live image
         id: texlive
@@ -190,6 +312,9 @@ jobs:
 
       - name: Discover CV variants
         id: scan
+        # TODO(pin): bump to the new actions release that contains the
+        # recursive scan.sh (required for the nested
+        # cvs/<yaml>-<lang>/<style>/ layout). v2.2.2 only scans <root>/*/.
         uses: stklug84/actions/texlive/discover-variants@64001a1c4c5c619f80bcc5481b00119ac0e6376c  # v2.2.2
         with:
           root: ${{ inputs.root }}
@@ -218,6 +343,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      # Built-in generate handoff: when the workflow ran its own generate
+      # job, lay the generated variant tree down at the repo root before
+      # the build so each leaf's freshly rendered files override any
+      # committed fallback. Mirrors the caller-driven prebuild path below.
+      - name: Download generated variant tree
+        if: inputs.generate == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ env.GENERATED_ARTIFACT }}
+          path: .
 
       # Prebuild artifact handoff. Runs only when the caller
       # passes a non-empty `prebuild-artifact`; otherwise it is a no-op
