@@ -1,38 +1,45 @@
 ---
-# Reusable workflow: matrix-build every LaTeX CV variant discovered under
-# `root` (default cvs/*/) inside a digest-pinned TeX Live container, then
-# combine all PDFs into a single artifact named after the calling repo.
-# Optionally (release: 'true') publish the PDFs as a versioned GitHub
-# release (tag v<YYYY.MM.DD>-r<run-number>) on push events, pruned to the
-# `release-keep` newest releases.
+# title: Build LaTeX CVs workflow
+# authors:
+#   - Steffen Klug <45033201+stklug84@users.noreply.github.com>
+# date: 2026-06-12
+# keywords: [reusable-workflow, latex]
+# comment: |
+#   Reusable workflow: matrix-build every LaTeX CV variant discovered under
+#   `root` (default cvs/*/) inside a digest-pinned TeX Live container, then
+#   combine all PDFs into a single artifact named after the calling repo.
+#   Optionally (release: 'true') publish the PDFs as a versioned GitHub
+#   release (tag v<YYYY.MM.DD>-r<run-number>) on push events, pruned to the
+#   `release-keep` newest releases.
 #
-# Consume from another repository:
+#   Consume from another repository:
 #
-#   jobs:
-#     build:
-#       # Only needed when release: 'true'; otherwise contents: read.
-#       permissions:
-#         contents: write
-#       uses: stklug84/github-workflows/.github/workflows/latex-build-cv.yml@v1.5.0
-#       with:
-#         texinputs: ".:../..:../../styles:../../images:"
-#         release: "true"
-#         release-keep: "10"
+#     jobs:
+#       build:
+#         # Only needed when release: 'true'; otherwise contents: read.
+#         permissions:
+#           contents: write
+#         uses: stklug84/github-workflows/.github/workflows/latex-build-cv.yml@v1.5.0
+#         with:
+#           texinputs: ".:../..:../../styles:../../images:"
+#           release: "true"
+#           release-keep: "10"
 #
-# The TeX Live container image is resolved from the caller's Dockerfile
-# (see `texlive-dockerfile`), so Dependabot's docker ecosystem in the
-# calling repo keeps the digest pin current. The caller SHOULD set a
-# concurrency group and needs `contents: read`, or `contents: write`
-# when releases are enabled.
+#   The TeX Live container image is resolved from the caller's Dockerfile
+#   (see `texlive-dockerfile`), so Dependabot's docker ecosystem in the
+#   calling repo keeps the digest pin current. The caller SHOULD set a
+#   concurrency group and needs `contents: read`, or `contents: write`
+#   when releases are enabled.
 #
-# Prebuild artifact handoff: set `prebuild-artifact` to the
-# name of an artifact uploaded by a separate `generate` job in the caller
-# (wired via `needs: generate`). After this workflow checks out the repo
-# and BEFORE it builds, that artifact is downloaded and extracted into
-# `prebuild-into` (default repo root), so generated `.tex` files can
-# override or supply files for the build. Both inputs are optional and
-# default to a no-op (empty `prebuild-artifact`), so existing callers are
-# unaffected.
+#   Prebuild artifact handoff: set `prebuild-artifact` to the
+#   name of an artifact uploaded by a separate `generate` job in the caller
+#   (wired via `needs: generate`). After this workflow checks out the repo
+#   and BEFORE it builds, that artifact is downloaded and extracted into
+#   `prebuild-into` (default repo root), so generated `.tex` files can
+#   override or supply files for the build. Both inputs are optional and
+#   default to a no-op (empty `prebuild-artifact`), so existing callers are
+#   unaffected.
+# ---
 name: Build LaTeX CVs
 
 on:
@@ -183,7 +190,7 @@ jobs:
 
       - name: Discover CV variants
         id: scan
-        uses: stklug84/actions/texlive/discover-variants@cb91fdcefccd47f24449549389216a5981a6455c  # v2.2.1
+        uses: stklug84/actions/texlive/discover-variants@64001a1c4c5c619f80bcc5481b00119ac0e6376c  # v2.2.2
         with:
           root: ${{ inputs.root }}
           default-engine: ${{ inputs.default-engine }}
@@ -237,7 +244,7 @@ jobs:
           path: ${{ inputs.prebuild-into }}
 
       - name: Build ${{ matrix.name }} (${{ matrix.engine }})
-        uses: stklug84/actions/texlive/build-pdf@cb91fdcefccd47f24449549389216a5981a6455c  # v2.2.1
+        uses: stklug84/actions/texlive/build-pdf@64001a1c4c5c619f80bcc5481b00119ac0e6376c  # v2.2.2
         with:
           working-directory: ${{ matrix.dir }}
           main: ${{ matrix.main }}
@@ -261,7 +268,7 @@ jobs:
 
       - name: Upload build logs on failure
         if: failure() && needs.discover.outputs.local != 'true'
-        uses: stklug84/actions/texlive/upload-build-logs@cb91fdcefccd47f24449549389216a5981a6455c  # v2.2.1
+        uses: stklug84/actions/texlive/upload-build-logs@64001a1c4c5c619f80bcc5481b00119ac0e6376c  # v2.2.2
         with:
           artifact-name: ${{ env.ARTIFACT_PREFIX }}-${{ matrix.name }}-logs
           paths: |
