@@ -19,7 +19,7 @@
 # and leaves existing callers unaffected.
 name: Deploy Jekyll to GitHub Pages
 
-on:  # yamllint disable-line rule:truthy
+on:
   workflow_call:
     inputs:
       source:

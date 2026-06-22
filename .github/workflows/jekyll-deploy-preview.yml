@@ -14,7 +14,7 @@
 #         previews-deploy-token: ${{ secrets.PREVIEWS_DEPLOY_TOKEN }}
 name: Deploy Jekyll Preview
 
-on:  # yamllint disable-line rule:truthy
+on:
   workflow_call:
     inputs:
       previews-repo:
