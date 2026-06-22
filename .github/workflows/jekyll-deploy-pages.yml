@@ -90,13 +90,13 @@ jobs:
         # Trust model: `checkout-ref` is a workflow_call input and can only be
         # set in the caller's committed workflow file (write access required).
         # Callers MUST NOT wire PR-controlled refs into this deploy workflow.
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 0
 
       - name: Setup Ruby with Bundler
-        uses: stklug84/actions/ruby/setup-ruby-bundler@2b736c4bde21265ae7838370be2753d973bfada0  # v1
+        uses: stklug84/actions/ruby/setup-ruby-bundler@cb91fdcefccd47f24449549389216a5981a6455c  # v1
         with:
           ruby-version: ${{ inputs.ruby-version }}
 
@@ -122,7 +122,7 @@ jobs:
 
       - name: Build with Jekyll (Bundler)
         # configure-pages exports the correct baseurl for project sites.
-        uses: stklug84/actions/jekyll/jekyll-build@2b736c4bde21265ae7838370be2753d973bfada0  # v1
+        uses: stklug84/actions/jekyll/jekyll-build@cb91fdcefccd47f24449549389216a5981a6455c  # v1
         with:
           source: ${{ inputs.source }}
           destination: ${{ inputs.destination }}
