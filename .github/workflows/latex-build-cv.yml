@@ -224,13 +224,9 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Generate CV variant tree
-        # SHA-pinned to the actions PR commit that adds cv/generate (and
-        # the recursive discover-variants scan.sh). CodeQL requires an
-        # immutable ref, not a mutable tag.
-        # TODO(pin): after that actions PR is merged and tagged, repin
-        # this to the tagged release SHA and update the trailing comment
-        # to the released version.
-        uses: stklug84/actions/cv/generate@1980edf200ad2234612e63ac7954921876bbb8d9  # cv/generate (PR, pre-release)
+        # SHA-pinned to the actions v2.4.0 release, which introduces
+        # cv/generate and the recursive discover-variants scan.sh.
+        uses: stklug84/actions/cv/generate@cd9b63fdb53b6530c4cecdace6bd0fbc07964853  # v2.4.0
         with:
           manifest: ${{ inputs.generate-manifest }}
           templates-dir: ${{ inputs.generate-templates-dir }}
@@ -313,10 +309,9 @@ jobs:
 
       - name: Discover CV variants
         id: scan
-        # TODO(pin): bump to the new actions release that contains the
-        # recursive scan.sh (required for the nested
-        # cvs/<yaml>-<lang>/<style>/ layout). v2.2.2 only scans <root>/*/.
-        uses: stklug84/actions/texlive/discover-variants@64001a1c4c5c619f80bcc5481b00119ac0e6376c  # v2.2.2
+        # Pinned to actions v2.4.0, whose scan.sh recurses to any depth
+        # (required for the nested cvs/<yaml>-<lang>/<style>/ layout).
+        uses: stklug84/actions/texlive/discover-variants@cd9b63fdb53b6530c4cecdace6bd0fbc07964853  # v2.4.0
         with:
           root: ${{ inputs.root }}
           default-engine: ${{ inputs.default-engine }}
@@ -381,7 +376,7 @@ jobs:
           path: ${{ inputs.prebuild-into }}
 
       - name: Build ${{ matrix.name }} (${{ matrix.engine }})
-        uses: stklug84/actions/texlive/build-pdf@64001a1c4c5c619f80bcc5481b00119ac0e6376c  # v2.2.2
+        uses: stklug84/actions/texlive/build-pdf@cd9b63fdb53b6530c4cecdace6bd0fbc07964853  # v2.4.0
         with:
           working-directory: ${{ matrix.dir }}
           main: ${{ matrix.main }}
@@ -405,7 +400,7 @@ jobs:
 
       - name: Upload build logs on failure
         if: failure() && needs.discover.outputs.local != 'true'
-        uses: stklug84/actions/texlive/upload-build-logs@64001a1c4c5c619f80bcc5481b00119ac0e6376c  # v2.2.2
+        uses: stklug84/actions/texlive/upload-build-logs@cd9b63fdb53b6530c4cecdace6bd0fbc07964853  # v2.4.0
         with:
           artifact-name: ${{ env.ARTIFACT_PREFIX }}-${{ matrix.name }}-logs
           paths: |
