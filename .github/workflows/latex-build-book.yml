@@ -18,7 +18,7 @@
 # be toggled off via `run-epub` for PDF-only books.
 name: Build LaTeX Book
 
-on:  # yamllint disable-line rule:truthy
+on:
   workflow_call:
     inputs:
       book-title:

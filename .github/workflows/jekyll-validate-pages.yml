@@ -20,7 +20,7 @@
 # empty `prebuild-artifact` is a no-op leaving existing callers unaffected.
 name: Validate Jekyll Pages
 
-on:  # yamllint disable-line rule:truthy
+on:
   workflow_call:
     inputs:
       runs-on:

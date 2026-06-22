@@ -41,8 +41,8 @@ here twice.
   a comment header (`# Reusable workflow: ...`) describing the workflow
   and showing a consumption example
   (`uses: stklug84/github-workflows/.github/workflows/<file>@vX.Y.Z`).
-- Use `on:  # yamllint disable-line rule:truthy` — the bare `on:` key
-  trips yamllint's truthy rule otherwise.
+- Use a bare `on:` key for triggers — `.yamllint.yml` configures the
+  `truthy` rule globally, so no per-file disable comment is needed.
 - Use 2-space indentation; keep lines at 120 characters or less
   (`.yamllint.yml`).
 - Declare least-privilege `permissions:` in the workflow itself (called
