@@ -1,26 +1,33 @@
 ---
-# Reusable workflow: build a Jekyll site (Bundler) and run quality checks.
-# Intended for pull-request validation.
+# title: Validate Jekyll Pages workflow
+# authors:
+#   - Steffen Klug <45033201+stklug84@users.noreply.github.com>
+# date: 2026-06-08
+# keywords: [reusable-workflow, jekyll]
+# comment: |
+#   Reusable workflow: build a Jekyll site (Bundler) and run quality checks.
+#   Intended for pull-request validation.
 #
-# Consume from another repository:
+#   Consume from another repository:
 #
-#   jobs:
-#     validate:
-#       uses: stklug84/github-workflows/.github/workflows/jekyll-validate-pages.yml@v1.2.0
+#     jobs:
+#       validate:
+#         uses: stklug84/github-workflows/.github/workflows/jekyll-validate-pages.yml@v1.2.0
 #
-# Every job reports its real pass/fail status (no continue-on-error). The
-# `build` job is the primary gate; the quality jobs (html-validate,
-# link-check, spell-check, yaml-lint, actions-lint, markdown-lint) fail the
-# check when their tool reports problems. Consumers decide which checks are
-# blocking by listing them as required status checks in branch protection /
-# a ruleset; any job can also be toggled off entirely via the run-* inputs.
+#   Every job reports its real pass/fail status (no continue-on-error). The
+#   `build` job is the primary gate; the quality jobs (html-validate,
+#   link-check, spell-check, yaml-lint, actions-lint, markdown-lint) fail the
+#   check when their tool reports problems. Consumers decide which checks are
+#   blocking by listing them as required status checks in branch protection /
+#   a ruleset; any job can also be toggled off entirely via the run-* inputs.
 #
-# Prebuild artifact handoff: set `prebuild-artifact` to the name
-# of an artifact uploaded by a separate caller `generate` job (wired via
-# `needs: generate`). It is downloaded into `prebuild-into` (typically
-# `_data`, e.g. a generated `cv.yml`) BEFORE the Jekyll build, so PR
-# validation builds against the generated data. Both inputs are optional;
-# empty `prebuild-artifact` is a no-op leaving existing callers unaffected.
+#   Prebuild artifact handoff: set `prebuild-artifact` to the name
+#   of an artifact uploaded by a separate caller `generate` job (wired via
+#   `needs: generate`). It is downloaded into `prebuild-into` (typically
+#   `_data`, e.g. a generated `cv.yml`) BEFORE the Jekyll build, so PR
+#   validation builds against the generated data. Both inputs are optional;
+#   empty `prebuild-artifact` is a no-op leaving existing callers unaffected.
+# ---
 name: Validate Jekyll Pages
 
 on:
@@ -144,7 +151,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Ruby with Bundler
-        uses: stklug84/actions/ruby/setup-ruby-bundler@cb91fdcefccd47f24449549389216a5981a6455c  # v1
+        uses: stklug84/actions/ruby/setup-ruby-bundler@64001a1c4c5c619f80bcc5481b00119ac0e6376c  # v2.2.2
         with:
           ruby-version: ${{ inputs.ruby-version }}
 
@@ -163,7 +170,7 @@ jobs:
           path: ${{ inputs.prebuild-into }}
 
       - name: Build with Jekyll (Bundler)
-        uses: stklug84/actions/jekyll/jekyll-build@cb91fdcefccd47f24449549389216a5981a6455c  # v1
+        uses: stklug84/actions/jekyll/jekyll-build@64001a1c4c5c619f80bcc5481b00119ac0e6376c  # v2.2.2
         with:
           source: ${{ inputs.source }}
           destination: ${{ inputs.destination }}
