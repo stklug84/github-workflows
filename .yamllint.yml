@@ -1,20 +1,21 @@
 ---
-# title: YAMLlint rules configuration
-# author:
-#   - Steffen Klug <45033201+stklug84@users.noreply.github.com>
-# date: 2023-02-16
-# keywords: [infrastructure, linting]
-# comment: |
-#   All yaml files linter extensions need to be added below
-# ---
-
+# yamllint configuration — shared baseline across stklug84 repos.
+# Maintainer: Steffen Klug <45033201+stklug84@users.noreply.github.com>
 extends: default
 
 rules:
-  # Use only two spaces for intendation
+  # Two-space indentation.
   indentation:
     spaces: 2
-  # Relax-line length into warning
+  # Over-length is a warning, not an error.
   line-length:
     max: 120
     level: warning
+  # GitHub Actions uses a bare `on:` top-level key; without this yamllint
+  # flags it as truthy. Configuring it here removes the need for per-file
+  # `# yamllint disable-line rule:truthy` comments.
+  truthy:
+    allowed-values: ["true", "false"]
+    check-keys: false
+  comments:
+    min-spaces-from-content: 1
