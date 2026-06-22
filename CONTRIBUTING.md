@@ -70,7 +70,7 @@ pushing (requires `actionlint`, `yamllint`, `npx`):
 ```bash
 actionlint
 yamllint --strict .
-npx markdownlint-cli2 --config .markdownlint.yaml '**/*.md'
+npx markdownlint-cli2 --config .markdownlint.yml '**/*.md'
 ```
 
 | Check        | Configuration        | Scope                                   |
@@ -78,7 +78,7 @@ npx markdownlint-cli2 --config .markdownlint.yaml '**/*.md'
 | actionlint   | built-in             | `.github/workflows/*`                    |
 | shellcheck   | `.shellcheckrc`      | inline `run:` bash (via actionlint)      |
 | yamllint     | `.yamllint.yml`      | all YAML files                           |
-| markdownlint | `.markdownlint.yaml` | all Markdown files                       |
+| markdownlint | `.markdownlint.yml`  | all Markdown files                       |
 
 There is no standalone shellcheck step: all bash in this repository lives
 inside workflow `run:` blocks, which actionlint feeds through shellcheck
