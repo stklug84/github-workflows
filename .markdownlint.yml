@@ -1,11 +1,17 @@
 ---
-# markdownlint configuration — shared baseline across stklug84 repos.
-# Maintainer: Steffen Klug <45033201+stklug84@users.noreply.github.com>
-# Deviations from defaults:
-#   MD010 — allow hard tabs in code blocks
-#   MD013 — line length 120; tables and code blocks exempt
-#   MD024 — duplicate headings allowed unless siblings
-#   MD060 — table column-alignment check disabled
+# title: markdownlint rules configuration
+# authors:
+#   - Steffen Klug <45033201+stklug84@users.noreply.github.com>
+# date: 2026-06-22
+# keywords: [infrastructure, linting]
+# comment: |
+#   Shared markdownlint baseline across stklug84 repos. Deviations from
+#   defaults:
+#     MD010 — allow hard tabs in code blocks
+#     MD013 — line length 120; tables and code blocks exempt
+#     MD024 — duplicate headings allowed unless siblings
+#     MD060 — table column-alignment check disabled
+# ---
 
 # Default state for all rules
 default: true

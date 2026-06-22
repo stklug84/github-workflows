@@ -1,21 +1,28 @@
 ---
-# Reusable workflow: build the print-ready PDF (and optionally the EPUB 3
-# edition) of a LaTeX book in a TeX Live container, then combine the
-# outputs into a single user-facing artifact.
+# title: Build LaTeX Book workflow
+# authors:
+#   - Steffen Klug <45033201+stklug84@users.noreply.github.com>
+# date: 2026-06-12
+# keywords: [reusable-workflow, latex]
+# comment: |
+#   Reusable workflow: build the print-ready PDF (and optionally the EPUB 3
+#   edition) of a LaTeX book in a TeX Live container, then combine the
+#   outputs into a single user-facing artifact.
 #
-# Consume from another repository:
+#   Consume from another repository:
 #
-#   jobs:
-#     build:
-#       uses: stklug84/github-workflows/.github/workflows/latex-build-book.yml@v1.3.0
-#       with:
-#         book-title: "My Book"
+#     jobs:
+#       build:
+#         uses: stklug84/github-workflows/.github/workflows/latex-build-book.yml@v1.3.0
+#         with:
+#           book-title: "My Book"
 #
-# Engine/aux-tool detection, PDF compilation, EPUB build, and EPUB
-# validation all live in the stklug84/actions/texlive/* composite
-# actions; this workflow only wires them together. The caller SHOULD set
-# a concurrency group and only needs `contents: read`. The EPUB jobs can
-# be toggled off via `run-epub` for PDF-only books.
+#   Engine/aux-tool detection, PDF compilation, EPUB build, and EPUB
+#   validation all live in the stklug84/actions/texlive/* composite
+#   actions; this workflow only wires them together. The caller SHOULD set
+#   a concurrency group and only needs `contents: read`. The EPUB jobs can
+#   be toggled off via `run-epub` for PDF-only books.
+# ---
 name: Build LaTeX Book
 
 on:
@@ -173,7 +180,7 @@ jobs:
       # \documentclass auto-detection.
       - name: Detect build configuration
         id: detect
-        uses: stklug84/actions/texlive/detect@cb91fdcefccd47f24449549389216a5981a6455c  # v2.2.1
+        uses: stklug84/actions/texlive/detect@64001a1c4c5c619f80bcc5481b00119ac0e6376c  # v2.2.2
         with:
           engine: ${{ inputs.engine }}
           local: ${{ inputs.local }}
@@ -199,7 +206,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Build PDF
-        uses: stklug84/actions/texlive/build-pdf@cb91fdcefccd47f24449549389216a5981a6455c  # v2.2.1
+        uses: stklug84/actions/texlive/build-pdf@64001a1c4c5c619f80bcc5481b00119ac0e6376c  # v2.2.2
         with:
           main: ${{ needs.detect.outputs.main }}
           engine: ${{ needs.detect.outputs.engine }}
@@ -222,7 +229,7 @@ jobs:
 
       - name: Upload build logs on failure
         if: failure() && needs.detect.outputs.local != 'true'
-        uses: stklug84/actions/texlive/upload-build-logs@cb91fdcefccd47f24449549389216a5981a6455c  # v2.2.1
+        uses: stklug84/actions/texlive/upload-build-logs@64001a1c4c5c619f80bcc5481b00119ac0e6376c  # v2.2.2
         with:
           artifact-name: ${{ env.ARTIFACT_NAME }}-build-logs
           paths: |
@@ -251,7 +258,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Build EPUB
-        uses: stklug84/actions/texlive/build-epub@cb91fdcefccd47f24449549389216a5981a6455c  # v2.2.1
+        uses: stklug84/actions/texlive/build-epub@64001a1c4c5c619f80bcc5481b00119ac0e6376c  # v2.2.2
         with:
           main: ${{ needs.detect.outputs.main }}
           config: ${{ inputs.epub-config }}
@@ -270,7 +277,7 @@ jobs:
       # failed epubcheck leaves the full workspace intact for the
       # post-mortem log upload below.
       - name: Validate EPUB and clean workspace
-        uses: stklug84/actions/texlive/validate-epub@cb91fdcefccd47f24449549389216a5981a6455c  # v2.2.1
+        uses: stklug84/actions/texlive/validate-epub@64001a1c4c5c619f80bcc5481b00119ac0e6376c  # v2.2.2
         with:
           main: ${{ needs.detect.outputs.main }}
           epubcheck-version: ${{ inputs.epubcheck-version }}
@@ -288,7 +295,7 @@ jobs:
 
       - name: Upload EPUB build logs on failure
         if: failure() && needs.detect.outputs.local != 'true'
-        uses: stklug84/actions/texlive/upload-build-logs@cb91fdcefccd47f24449549389216a5981a6455c  # v2.2.1
+        uses: stklug84/actions/texlive/upload-build-logs@64001a1c4c5c619f80bcc5481b00119ac0e6376c  # v2.2.2
         with:
           artifact-name: ${{ env.ARTIFACT_NAME }}-build-epub-logs
           paths: |

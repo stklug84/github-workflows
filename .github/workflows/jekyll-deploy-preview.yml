@@ -1,17 +1,24 @@
 ---
-# Reusable workflow: build a per-commit Jekyll preview and publish it into a
-# separate "previews" repository under a short-SHA path, pruning old previews.
+# title: Deploy Jekyll Preview workflow
+# authors:
+#   - Steffen Klug <45033201+stklug84@users.noreply.github.com>
+# date: 2026-06-08
+# keywords: [reusable-workflow, jekyll]
+# comment: |
+#   Reusable workflow: build a per-commit Jekyll preview and publish it into a
+#   separate "previews" repository under a short-SHA path, pruning old previews.
 #
-# Consume from another repository:
+#   Consume from another repository:
 #
-#   jobs:
-#     preview:
-#       uses: stklug84/github-workflows/.github/workflows/jekyll-deploy-preview.yml@v1.2.0
-#       with:
-#         previews-repo: owner/my-previews
-#         preview-domain: https://example.com
-#       secrets:
-#         previews-deploy-token: ${{ secrets.PREVIEWS_DEPLOY_TOKEN }}
+#     jobs:
+#       preview:
+#         uses: stklug84/github-workflows/.github/workflows/jekyll-deploy-preview.yml@v1.2.0
+#         with:
+#           previews-repo: owner/my-previews
+#           preview-domain: https://example.com
+#         secrets:
+#           previews-deploy-token: ${{ secrets.PREVIEWS_DEPLOY_TOKEN }}
+# ---
 name: Deploy Jekyll Preview
 
 on:
@@ -93,12 +100,12 @@ jobs:
           cat _config.yml
 
       - name: Setup Ruby with Bundler
-        uses: stklug84/actions/ruby/setup-ruby-bundler@cb91fdcefccd47f24449549389216a5981a6455c  # v1
+        uses: stklug84/actions/ruby/setup-ruby-bundler@64001a1c4c5c619f80bcc5481b00119ac0e6376c  # v2.2.2
         with:
           ruby-version: ${{ inputs.ruby-version }}
 
       - name: Build with Jekyll (Bundler)
-        uses: stklug84/actions/jekyll/jekyll-build@cb91fdcefccd47f24449549389216a5981a6455c  # v1
+        uses: stklug84/actions/jekyll/jekyll-build@64001a1c4c5c619f80bcc5481b00119ac0e6376c  # v2.2.2
         with:
           source: ${{ inputs.source }}
           destination: ${{ inputs.destination }}

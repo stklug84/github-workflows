@@ -1,6 +1,14 @@
 ---
-# yamllint configuration — shared baseline across stklug84 repos.
-# Maintainer: Steffen Klug <45033201+stklug84@users.noreply.github.com>
+# title: YAMLlint rules configuration
+# authors:
+#   - Steffen Klug <45033201+stklug84@users.noreply.github.com>
+# date: 2026-06-22
+# keywords: [infrastructure, linting]
+# comment: |
+#   Shared yamllint baseline across stklug84 repos. All yaml files linter
+#   extensions need to be added below.
+# ---
+
 extends: default
 
 rules:
