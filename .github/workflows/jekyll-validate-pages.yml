@@ -136,12 +136,12 @@ jobs:
     runs-on: ${{ inputs.runs-on }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Setup Ruby with Bundler
-        uses: stklug84/actions/ruby/setup-ruby-bundler@2b736c4bde21265ae7838370be2753d973bfada0  # v1
+        uses: stklug84/actions/ruby/setup-ruby-bundler@cb91fdcefccd47f24449549389216a5981a6455c  # v1
         with:
           ruby-version: ${{ inputs.ruby-version }}
 
@@ -160,7 +160,7 @@ jobs:
           path: ${{ inputs.prebuild-into }}
 
       - name: Build with Jekyll (Bundler)
-        uses: stklug84/actions/jekyll/jekyll-build@2b736c4bde21265ae7838370be2753d973bfada0  # v1
+        uses: stklug84/actions/jekyll/jekyll-build@cb91fdcefccd47f24449549389216a5981a6455c  # v1
         with:
           source: ${{ inputs.source }}
           destination: ${{ inputs.destination }}
@@ -180,7 +180,7 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Download site
         uses: actions/download-artifact@v8
         with:
@@ -205,7 +205,7 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Download site
         uses: actions/download-artifact@v8
         with:
@@ -231,7 +231,7 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Run cspell
         uses: streetsidesoftware/cspell-action@de2a73e963e7443969755b648a1008f77033c5b2  # v8
         with:
@@ -245,7 +245,7 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Install yamllint
         run: pipx install yamllint
       - name: Run yamllint
@@ -264,7 +264,7 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Run actionlint
         uses: raven-actions/actionlint@205b530c5d9fa8f44ae9ed59f341a0db994aa6f8  # v2
 
@@ -275,7 +275,7 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Run markdownlint
         uses: DavidAnson/markdownlint-cli2-action@ded1f9488f68a970bc66ea5619e13e9b52e601cd  # v23
         with:

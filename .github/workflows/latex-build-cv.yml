@@ -148,7 +148,7 @@ jobs:
       texlive-image: ${{ steps.texlive.outputs.image }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Resolve pinned TeX Live image
         id: texlive
@@ -183,7 +183,7 @@ jobs:
 
       - name: Discover CV variants
         id: scan
-        uses: stklug84/actions/texlive/discover-variants@6dcd727c4b2eeea225cd8e8d1ab1dfe593da8b4f  # v1.3.0
+        uses: stklug84/actions/texlive/discover-variants@cb91fdcefccd47f24449549389216a5981a6455c  # v2.2.1
         with:
           root: ${{ inputs.root }}
           default-engine: ${{ inputs.default-engine }}
@@ -210,7 +210,7 @@ jobs:
       matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # Prebuild artifact handoff. Runs only when the caller
       # passes a non-empty `prebuild-artifact`; otherwise it is a no-op
@@ -237,7 +237,7 @@ jobs:
           path: ${{ inputs.prebuild-into }}
 
       - name: Build ${{ matrix.name }} (${{ matrix.engine }})
-        uses: stklug84/actions/texlive/build-pdf@6dcd727c4b2eeea225cd8e8d1ab1dfe593da8b4f  # v1.3.0
+        uses: stklug84/actions/texlive/build-pdf@cb91fdcefccd47f24449549389216a5981a6455c  # v2.2.1
         with:
           working-directory: ${{ matrix.dir }}
           main: ${{ matrix.main }}
@@ -261,7 +261,7 @@ jobs:
 
       - name: Upload build logs on failure
         if: failure() && needs.discover.outputs.local != 'true'
-        uses: stklug84/actions/texlive/upload-build-logs@6dcd727c4b2eeea225cd8e8d1ab1dfe593da8b4f  # v1.3.0
+        uses: stklug84/actions/texlive/upload-build-logs@cb91fdcefccd47f24449549389216a5981a6455c  # v2.2.1
         with:
           artifact-name: ${{ env.ARTIFACT_PREFIX }}-${{ matrix.name }}-logs
           paths: |
