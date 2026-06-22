@@ -77,12 +77,15 @@ cache-friendly builds. `ruby/setup-ruby` requires an explicit version, so a
 
 No secrets are required — GitHub Pages deployment uses the OIDC `id-token`.
 
-## `jekyll-validate-pages.yml` — build & advisory checks for pull requests
+## `jekyll-validate-pages.yml` — build & quality checks for pull requests
 
-Builds the site with Bundler (the `build` job — the meaningful gate) and runs a
-set of advisory checks (`html-validate`, `link-check`, `spell-check`,
-`yaml-lint`, `actions-lint`, `markdown-lint`), each `continue-on-error`. Every
-advisory job can be toggled off per repo.
+Builds the site with Bundler (the `build` job — the primary gate) and runs a
+set of quality checks (`html-validate`, `link-check`, `spell-check`,
+`yaml-lint`, `actions-lint`, `markdown-lint`). Each job reports its real
+pass/fail status (no `continue-on-error`), so a failing tool fails its check.
+Consumers choose which checks are blocking by listing them as required status
+checks in branch protection / a ruleset; any job can be toggled off per repo
+via the `run-*` inputs.
 
 ### Usage
 

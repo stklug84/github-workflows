@@ -1,6 +1,6 @@
 ---
-# Reusable workflow: build a Jekyll site (Bundler) and run advisory quality
-# checks. Intended for pull-request validation.
+# Reusable workflow: build a Jekyll site (Bundler) and run quality checks.
+# Intended for pull-request validation.
 #
 # Consume from another repository:
 #
@@ -8,9 +8,12 @@
 #     validate:
 #       uses: stklug84/github-workflows/.github/workflows/jekyll-validate-pages.yml@v1.2.0
 #
-# The `build` job is the meaningful gate (wire it into branch protection as
-# `<caller-job> / build`). All other jobs are advisory (continue-on-error) and
-# can be toggled off per repo via the run-* inputs.
+# Every job reports its real pass/fail status (no continue-on-error). The
+# `build` job is the primary gate; the quality jobs (html-validate,
+# link-check, spell-check, yaml-lint, actions-lint, markdown-lint) fail the
+# check when their tool reports problems. Consumers decide which checks are
+# blocking by listing them as required status checks in branch protection /
+# a ruleset; any job can also be toggled off entirely via the run-* inputs.
 #
 # Prebuild artifact handoff: set `prebuild-artifact` to the name
 # of an artifact uploaded by a separate caller `generate` job (wired via
@@ -76,32 +79,32 @@ on:
         required: false
         default: "**/*.md"
       run-html-validate:
-        description: "Run the html-validate advisory job."
+        description: "Run the html-validate job."
         type: boolean
         required: false
         default: true
       run-link-check:
-        description: "Run the link-check advisory job."
+        description: "Run the link-check job."
         type: boolean
         required: false
         default: true
       run-spell-check:
-        description: "Run the spell-check advisory job."
+        description: "Run the spell-check job."
         type: boolean
         required: false
         default: true
       run-yaml-lint:
-        description: "Run the yaml-lint advisory job."
+        description: "Run the yaml-lint job."
         type: boolean
         required: false
         default: true
       run-actions-lint:
-        description: "Run the actions-lint advisory job."
+        description: "Run the actions-lint job."
         type: boolean
         required: false
         default: true
       run-markdown-lint:
-        description: "Run the markdown-lint advisory job."
+        description: "Run the markdown-lint job."
         type: boolean
         required: false
         default: true
@@ -173,11 +176,10 @@ jobs:
           retention-days: 1
 
   html-validate:
-    name: html-validate (advisory)
+    name: html-validate
     runs-on: ${{ inputs.runs-on }}
     needs: build
     if: ${{ inputs.run-html-validate }}
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -198,11 +200,10 @@ jobs:
         run: npx html-validate "_site/**/*.html"
 
   link-check:
-    name: link-check (advisory)
+    name: link-check
     runs-on: ${{ inputs.runs-on }}
     needs: build
     if: ${{ inputs.run-link-check }}
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -225,10 +226,9 @@ jobs:
             _site
 
   spell-check:
-    name: spell-check (advisory)
+    name: spell-check
     runs-on: ${{ inputs.runs-on }}
     if: ${{ inputs.run-spell-check }}
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -239,10 +239,9 @@ jobs:
           incremental_files_only: false
 
   yaml-lint:
-    name: yaml-lint (advisory)
+    name: yaml-lint
     runs-on: ${{ inputs.runs-on }}
     if: ${{ inputs.run-yaml-lint }}
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -258,10 +257,9 @@ jobs:
           yamllint -c "$YAMLLINT_CONFIG" $YAMLLINT_PATHS
 
   actions-lint:
-    name: actions-lint (advisory)
+    name: actions-lint
     runs-on: ${{ inputs.runs-on }}
     if: ${{ inputs.run-actions-lint }}
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -269,10 +267,9 @@ jobs:
         uses: raven-actions/actionlint@205b530c5d9fa8f44ae9ed59f341a0db994aa6f8  # v2
 
   markdown-lint:
-    name: markdown-lint (advisory)
+    name: markdown-lint
     runs-on: ${{ inputs.runs-on }}
     if: ${{ inputs.run-markdown-lint }}
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v7
