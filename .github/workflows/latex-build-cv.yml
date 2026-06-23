@@ -226,7 +226,7 @@ jobs:
       - name: Generate CV variant tree
         # SHA-pinned to the actions v2.4.0 release, which introduces
         # cv/generate and the recursive discover-variants scan.sh.
-        uses: stklug84/actions/cv/generate@043343ecff18cb5a058f61145c8715a4a4cc7d98  # v2.4.0
+        uses: stklug84/actions/cv/generate@aa3e716a95b81812444d7b937f803e6a77fb9194  # v2.5.0
         with:
           manifest: ${{ inputs.generate-manifest }}
           templates-dir: ${{ inputs.generate-templates-dir }}
@@ -311,7 +311,7 @@ jobs:
         id: scan
         # Pinned to actions v2.4.0, whose scan.sh recurses to any depth
         # (required for the nested cvs/<yaml>-<lang>/<style>/ layout).
-        uses: stklug84/actions/texlive/discover-variants@043343ecff18cb5a058f61145c8715a4a4cc7d98  # v2.4.0
+        uses: stklug84/actions/texlive/discover-variants@aa3e716a95b81812444d7b937f803e6a77fb9194  # v2.5.0
         with:
           root: ${{ inputs.root }}
           default-engine: ${{ inputs.default-engine }}
@@ -376,7 +376,7 @@ jobs:
           path: ${{ inputs.prebuild-into }}
 
       - name: Build ${{ matrix.name }} (${{ matrix.engine }})
-        uses: stklug84/actions/texlive/build-pdf@043343ecff18cb5a058f61145c8715a4a4cc7d98  # v2.4.0
+        uses: stklug84/actions/texlive/build-pdf@aa3e716a95b81812444d7b937f803e6a77fb9194  # v2.5.0
         with:
           working-directory: ${{ matrix.dir }}
           main: ${{ matrix.main }}
@@ -400,7 +400,7 @@ jobs:
 
       - name: Upload build logs on failure
         if: failure() && needs.discover.outputs.local != 'true'
-        uses: stklug84/actions/texlive/upload-build-logs@043343ecff18cb5a058f61145c8715a4a4cc7d98  # v2.4.0
+        uses: stklug84/actions/texlive/upload-build-logs@aa3e716a95b81812444d7b937f803e6a77fb9194  # v2.5.0
         with:
           artifact-name: ${{ env.ARTIFACT_PREFIX }}-${{ matrix.name }}-logs
           paths: |
