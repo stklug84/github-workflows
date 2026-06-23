@@ -286,12 +286,18 @@ jobs:
           # locally. Hosted CI keeps the default clean checkout.
           clean: ${{ inputs.local != 'true' }}
 
-      # When the built-in generate job ran, lay its tree down at the repo
-      # root so discovery scans the freshly generated variants.
+      # When the built-in generate job ran, lay its tree down under the
+      # variant root so discovery scans the freshly generated variants.
+      # upload-artifact strips the common parent of the uploaded glob
+      # (cvs/**), so the artifact's internal tree is rooted at the variant
+      # dirs (e.g. <yaml>-<lang>/<style>/...). Download into `inputs.root`
+      # to restore the cvs/<yaml>-<lang>/<style>/ layout that scan.sh and
+      # the build job expect; downloading into "." would land the tree at
+      # the repo root and discover would find no variants.
       # Non-fatal: on a zero-variant generate run the artifact is never
       # produced (see the generate job's upload note). Missing artifact ->
-      # empty checkout tree -> discover emits an empty matrix -> build is a
-      # no-op. download-artifact errors on a missing name, so swallow it.
+      # empty tree under root -> discover emits an empty matrix -> build is
+      # a no-op. download-artifact errors on a missing name, so swallow it.
       # Skipped in local mode (gh act): no artifact is produced there; the
       # generate job's tree already persists in the bind-mounted workspace.
       - name: Download generated variant tree
@@ -300,7 +306,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: ${{ env.GENERATED_ARTIFACT }}
-          path: .
+          path: ${{ inputs.root }}
 
       - name: Resolve pinned TeX Live image
         id: texlive
@@ -374,9 +380,13 @@ jobs:
           clean: ${{ needs.discover.outputs.local != 'true' }}
 
       # Built-in generate handoff: when the workflow ran its own generate
-      # job, lay the generated variant tree down at the repo root before
-      # the build so each leaf's freshly rendered files override any
-      # committed fallback. Mirrors the caller-driven prebuild path below.
+      # job, lay the generated variant tree down under the variant root
+      # before the build so each leaf's freshly rendered files override any
+      # committed fallback. upload-artifact strips the cvs/ parent from the
+      # uploaded glob, so download into `inputs.root` to restore the
+      # cvs/<yaml>-<lang>/<style>/ layout the build matrix paths reference
+      # (matching the discover job's download). Mirrors the caller-driven
+      # prebuild path below.
       # Skipped in local mode (gh act): no artifact is produced there; the
       # generate job's tree already persists in the bind-mounted workspace.
       - name: Download generated variant tree
@@ -384,7 +394,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: ${{ env.GENERATED_ARTIFACT }}
-          path: .
+          path: ${{ inputs.root }}
 
       # Prebuild artifact handoff. Runs only when the caller
       # passes a non-empty `prebuild-artifact`; otherwise it is a no-op
