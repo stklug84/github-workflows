@@ -247,6 +247,12 @@ jobs:
           path: |
             ${{ inputs.root }}/**/*.tex
             ${{ inputs.root }}/**/.engine
+          # The per-variant .engine dotfile selects the TeX engine
+          # (e.g. xelatex for XeTeX-only styles). upload-artifact excludes
+          # dotfiles by default, which would drop every .engine and force
+          # the build to fall back to pdflatex -- breaking XeTeX styles.
+          # Opt in to hidden files so .engine survives the round-trip.
+          include-hidden-files: true
           # A zero-variant generate is legitimate: every CV source named in
           # the manifest may be local-only/gitignored (PII) and therefore
           # absent from this checkout, so cv/generate skips them all. In
