@@ -234,7 +234,13 @@ jobs:
           data-dir: ${{ inputs.generate-data-dir }}
           main-name: ${{ inputs.generate-main-name }}
 
+      # Skipped in local mode (gh act / ACT=true): act runs every job
+      # against the same bind-mounted host workspace, so the variant tree
+      # written above already persists to `discover` and `build` without an
+      # artifact round-trip. act also provides no artifact backend
+      # (ACTIONS_RUNTIME_TOKEN is unset), so upload-artifact would fail.
       - name: Upload generated variant tree
+        if: inputs.local != 'true'
         uses: actions/upload-artifact@v7
         with:
           name: ${{ env.GENERATED_ARTIFACT }}
@@ -272,6 +278,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          # In local mode (gh act) every job shares one bind-mounted
+          # workspace, so the generate job's variant tree is already on
+          # disk here. The default clean (git clean -ffdx) would wipe that
+          # gitignored tree before discovery scans it, so disable cleaning
+          # locally. Hosted CI keeps the default clean checkout.
+          clean: ${{ inputs.local != 'true' }}
 
       # When the built-in generate job ran, lay its tree down at the repo
       # root so discovery scans the freshly generated variants.
@@ -279,8 +292,10 @@ jobs:
       # produced (see the generate job's upload note). Missing artifact ->
       # empty checkout tree -> discover emits an empty matrix -> build is a
       # no-op. download-artifact errors on a missing name, so swallow it.
+      # Skipped in local mode (gh act): no artifact is produced there; the
+      # generate job's tree already persists in the bind-mounted workspace.
       - name: Download generated variant tree
-        if: inputs.generate == 'true'
+        if: inputs.generate == 'true' && inputs.local != 'true'
         continue-on-error: true
         uses: actions/download-artifact@v8
         with:
@@ -351,13 +366,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          # In local mode (gh act) the bind-mounted workspace already holds
+          # the generate job's variant tree; the default clean would wipe
+          # that gitignored tree before the build reads it. Hosted CI keeps
+          # the default clean checkout.
+          clean: ${{ needs.discover.outputs.local != 'true' }}
 
       # Built-in generate handoff: when the workflow ran its own generate
       # job, lay the generated variant tree down at the repo root before
       # the build so each leaf's freshly rendered files override any
       # committed fallback. Mirrors the caller-driven prebuild path below.
+      # Skipped in local mode (gh act): no artifact is produced there; the
+      # generate job's tree already persists in the bind-mounted workspace.
       - name: Download generated variant tree
-        if: inputs.generate == 'true'
+        if: inputs.generate == 'true' && needs.discover.outputs.local != 'true'
         uses: actions/download-artifact@v8
         with:
           name: ${{ env.GENERATED_ARTIFACT }}
