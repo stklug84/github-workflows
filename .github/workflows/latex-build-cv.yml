@@ -519,10 +519,27 @@ jobs:
 
       - name: Flatten release assets
         shell: bash
+        env:
+          PREFIX: ${{ env.ARTIFACT_PREFIX }}
         run: |
           set -euo pipefail
           mkdir -p ./assets
-          find ./dist -type f -name '*.pdf' -exec cp -v {} ./assets/ \;
+          shopt -s nullglob
+          # Each per-CV PDF arrives in its own artifact subdir
+          # (download-artifact pattern, no merge-multiple):
+          #   ./dist/<repo>-<name>-pdf/<main>.pdf
+          # Every leaf main shares one basename (e.g. sklug-cv.pdf), so a
+          # flat copy by basename collides and only one variant survives in
+          # the release. Derive a unique name from the artifact dir instead:
+          # strip the "<repo>-" prefix and "-pdf" suffix, drop the style
+          # segment's leading "cv-", and prefix "stklug-".
+          for pdf in ./dist/*/*.pdf; do
+            d="$(basename "$(dirname "$pdf")")"   # <repo>-<name>-pdf
+            variant="${d#"${PREFIX}-"}"            # strip "<repo>-"
+            variant="${variant%-pdf}"             # strip "-pdf"
+            variant="$(printf '%s' "$variant" | sed 's/-cv-/-/')"
+            cp -v "$pdf" "./assets/stklug-${variant}.pdf"
+          done
           if [ -z "$(ls -A ./assets)" ]; then
             echo "::error::No PDFs found to release."
             exit 1
