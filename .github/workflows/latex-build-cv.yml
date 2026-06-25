@@ -472,12 +472,43 @@ jobs:
     needs: [discover, build]
     if: needs.discover.outputs.local != 'true'
     runs-on: ${{ inputs.runs-on }}
+    # actions: read is required for `gh run download` / the run-artifacts
+    # REST API; the workflow default (contents: read) does not grant it.
+    permissions:
+      contents: read
+      actions: read
     steps:
+      # Per-name download (one subdir per artifact) for any variant count.
+      # Mirrors the release job: actions/download-artifact's `pattern:` mode
+      # flattens a *single* matching artifact directly into `path`, which
+      # would make the combined artifact's internal tree differ between the
+      # 1-variant and N-variant cases. `gh run download --name <n> --dir`
+      # always nests, keeping ./dist/<name>/<main>.pdf stable for 1..N.
       - name: Download all per-CV PDF artifacts
-        uses: actions/download-artifact@v8
-        with:
-          pattern: ${{ env.ARTIFACT_PREFIX }}-*-pdf
-          path: ./dist
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          PREFIX: ${{ env.ARTIFACT_PREFIX }}
+        run: |
+          set -euo pipefail
+          mkdir -p ./dist
+          mapfile -t names < <(
+            gh api --paginate \
+              "repos/${GH_REPO}/actions/runs/${RUN_ID}/artifacts" \
+              --jq '.artifacts[].name' \
+            | grep -E "^${PREFIX}-.*-pdf$" || true
+          )
+          if [ "${#names[@]}" -eq 0 ]; then
+            echo "::error::No ${PREFIX}-*-pdf artifacts found for run ${RUN_ID}."
+            exit 1
+          fi
+          echo "Found ${#names[@]} PDF artifact(s); downloading per-name."
+          for name in "${names[@]}"; do
+            echo "Downloading $name -> ./dist/$name"
+            gh run download "${RUN_ID}" --name "$name" --dir "./dist/$name"
+          done
 
       - name: List combined artifact contents
         shell: bash
@@ -510,14 +541,47 @@ jobs:
       github.event_name == 'push' &&
       needs.discover.outputs.local != 'true'
     runs-on: ${{ inputs.runs-on }}
+    # contents: write publishes the release; actions: read is required for
+    # `gh run download` / the run-artifacts REST API (not granted by the
+    # workflow default of contents: read).
     permissions:
       contents: write
+      actions: read
     steps:
+      # Download every per-CV PDF artifact into its OWN subdir, one dir per
+      # artifact name, for any variant count (1..N). We deliberately avoid
+      # actions/download-artifact's `pattern:` mode here: with a *single*
+      # matching artifact it extracts the PDF flat into `path` (./dist/x.pdf)
+      # instead of nesting it (./dist/<name>/x.pdf), which the flatten step
+      # below depends on. `gh run download --name <n> --dir ./dist/<n>`
+      # always nests, so the ./dist/<name>/<main>.pdf layout holds whether
+      # one or many variants were built.
       - name: Download all per-CV PDF artifacts
-        uses: actions/download-artifact@v8
-        with:
-          pattern: ${{ env.ARTIFACT_PREFIX }}-*-pdf
-          path: ./dist
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          PREFIX: ${{ env.ARTIFACT_PREFIX }}
+        run: |
+          set -euo pipefail
+          mkdir -p ./dist
+          # List this run's artifacts whose names match <prefix>-*-pdf.
+          mapfile -t names < <(
+            gh api --paginate \
+              "repos/${GH_REPO}/actions/runs/${RUN_ID}/artifacts" \
+              --jq '.artifacts[].name' \
+            | grep -E "^${PREFIX}-.*-pdf$" || true
+          )
+          if [ "${#names[@]}" -eq 0 ]; then
+            echo "::error::No ${PREFIX}-*-pdf artifacts found for run ${RUN_ID}."
+            exit 1
+          fi
+          echo "Found ${#names[@]} PDF artifact(s); downloading per-name."
+          for name in "${names[@]}"; do
+            echo "Downloading $name -> ./dist/$name"
+            gh run download "${RUN_ID}" --name "$name" --dir "./dist/$name"
+          done
 
       - name: Flatten release assets
         shell: bash
@@ -527,8 +591,8 @@ jobs:
           set -euo pipefail
           mkdir -p ./assets
           shopt -s nullglob
-          # Each per-CV PDF arrives in its own artifact subdir
-          # (download-artifact pattern, no merge-multiple):
+          # Each per-CV PDF lives in its own artifact subdir (guaranteed by
+          # the per-name download above, for any variant count):
           #   ./dist/<repo>-<name>-pdf/<main>.pdf
           # Every leaf main shares one basename (e.g. sklug-cv.pdf), so a
           # flat copy by basename collides and only one variant survives in
