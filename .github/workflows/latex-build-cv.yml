@@ -224,14 +224,17 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Generate CV variant tree
-        # SHA-pinned to the actions v2.10.0 release: cv/generate skips CV
+        # SHA-pinned to the actions v2.11.0 release: cv/generate skips CV
         # sources named in the manifest but absent from the checkout; the
         # bundled cv/parse emits meta.location/title/summary, tagged
         # experience bullets, the two-line name split (firstname/lastname),
-        # the conference location heatmap (lat/lon -> \cvheatmap) and now
-        # per-item tagged skill bars ({name,size} -> \cvskillitembar) plus
-        # data-driven interest icons (interests[].icon -> \cvinterest).
-        uses: stklug84/actions/cv/generate@2e6eef21ccdcdf849b02adbaa42e5da1b742d002  # v2.10.0
+        # the conference location heatmap (lat/lon -> \cvheatmap), per-item
+        # tagged skill bars ({name,size} -> \cvskillitembar), data-driven
+        # interest icons (interests[].icon -> \cvinterest) and now structured
+        # certifications (code/name/issuer -> tagged \cvcert{code}{name},
+        # other styles unchanged) plus an optional meta.pdf_title backing the
+        # PDF metadata title (absent -> "Lebenslauf").
+        uses: stklug84/actions/cv/generate@65656caff28ec2a4d66b5bb98151cc8f55e51414  # v2.11.0
         with:
           manifest: ${{ inputs.generate-manifest }}
           templates-dir: ${{ inputs.generate-templates-dir }}
@@ -352,10 +355,10 @@ jobs:
 
       - name: Discover CV variants
         id: scan
-        # Pinned to actions v2.10.0: scan.sh recurses to any depth (for the
+        # Pinned to actions v2.11.0: scan.sh recurses to any depth (for the
         # nested cvs/<yaml>-<lang>/<style>/ layout) and emits an empty
         # matrix instead of failing when there are no variants to build.
-        uses: stklug84/actions/texlive/discover-variants@2e6eef21ccdcdf849b02adbaa42e5da1b742d002  # v2.10.0
+        uses: stklug84/actions/texlive/discover-variants@65656caff28ec2a4d66b5bb98151cc8f55e51414  # v2.11.0
         with:
           root: ${{ inputs.root }}
           default-engine: ${{ inputs.default-engine }}
@@ -432,7 +435,7 @@ jobs:
           path: ${{ inputs.prebuild-into }}
 
       - name: Build ${{ matrix.name }} (${{ matrix.engine }})
-        uses: stklug84/actions/texlive/build-pdf@2e6eef21ccdcdf849b02adbaa42e5da1b742d002  # v2.10.0
+        uses: stklug84/actions/texlive/build-pdf@65656caff28ec2a4d66b5bb98151cc8f55e51414  # v2.11.0
         with:
           working-directory: ${{ matrix.dir }}
           main: ${{ matrix.main }}
@@ -456,7 +459,7 @@ jobs:
 
       - name: Upload build logs on failure
         if: failure() && needs.discover.outputs.local != 'true'
-        uses: stklug84/actions/texlive/upload-build-logs@2e6eef21ccdcdf849b02adbaa42e5da1b742d002  # v2.10.0
+        uses: stklug84/actions/texlive/upload-build-logs@65656caff28ec2a4d66b5bb98151cc8f55e51414  # v2.11.0
         with:
           artifact-name: ${{ env.ARTIFACT_PREFIX }}-${{ matrix.name }}-logs
           paths: |
