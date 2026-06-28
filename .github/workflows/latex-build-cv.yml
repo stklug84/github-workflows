@@ -545,8 +545,11 @@ jobs:
   #  (unique and chronologically sortable; GitHub marks the newest as
   #  "Latest release", so `gh release download` without a tag always
   #  fetches the current PDFs). When release-keep > 0, older releases
-  #  matching the same tag pattern are pruned together with their tags;
-  #  manually created releases with other tag formats are never touched.
+  #  matching the same tag pattern are pruned together with their tags
+  #  (gh release delete --cleanup-tag), and a follow-up sweep deletes any
+  #  workflow-pattern tag left orphaned (no matching release) by older runs
+  #  or a partial prune. Manually created releases or tags in other formats
+  #  are never touched.
   # =====================================================================
   release:
     needs: [discover, package]
@@ -662,16 +665,46 @@ jobs:
           KEEP: ${{ inputs.release-keep }}
         run: |
           set -euo pipefail
-          # Only releases created by this workflow (v<YYYY.MM.DD>-r<N>
-          # tags) are considered; newest first by creation date.
+          # Workflow tag pattern: v<YYYY.MM.DD>-r<N>. Only releases/tags
+          # matching it are ever touched; manually created releases or tags
+          # in other formats are left alone.
+          PATTERN='^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}-r[0-9]+$'
+
+          # (1) Prune old RELEASES (newest first by creation date), deleting
+          #     each release together with its underlying git tag.
           mapfile -t tags < <(
             gh release list --limit 1000 \
               --json tagName,createdAt \
               --jq 'sort_by(.createdAt) | reverse | .[].tagName' \
-            | grep -E '^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}-r[0-9]+$' || true
+            | grep -E "$PATTERN" || true
           )
           echo "Found ${#tags[@]} workflow release(s); keeping newest $KEEP."
           for ((i = KEEP; i < ${#tags[@]}; i++)); do
-            echo "Pruning release ${tags[$i]}"
+            echo "Pruning release ${tags[$i]} (and its tag)"
             gh release delete "${tags[$i]}" --cleanup-tag --yes
+          done
+
+          # (2) Sweep ORPHAN TAGS: workflow-pattern tags with no matching
+          #     release (e.g. left behind by older runs that deleted the
+          #     release without --cleanup-tag, or a partially failed prune).
+          #     `gh release delete --cleanup-tag` only removes the tag of a
+          #     still-existing release, so it can never reclaim these; delete
+          #     them directly via the git-refs API.
+          mapfile -t release_tags < <(
+            gh release list --limit 1000 --json tagName --jq '.[].tagName' \
+            | grep -E "$PATTERN" || true
+          )
+          mapfile -t all_tags < <(
+            gh api --paginate "repos/${GH_REPO}/tags" --jq '.[].name' \
+            | grep -E "$PATTERN" || true
+          )
+          for tag in "${all_tags[@]}"; do
+            keep_tag=""
+            for rt in "${release_tags[@]}"; do
+              if [ "$tag" = "$rt" ]; then keep_tag="yes"; break; fi
+            done
+            if [ -z "$keep_tag" ]; then
+              echo "Deleting orphan tag $tag (no matching release)"
+              gh api -X DELETE "repos/${GH_REPO}/git/refs/tags/${tag}"
+            fi
           done
