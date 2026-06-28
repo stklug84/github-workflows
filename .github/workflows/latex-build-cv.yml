@@ -224,7 +224,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Generate CV variant tree
-        # SHA-pinned to the actions v2.12.0 release: cv/generate skips CV
+        # SHA-pinned to the actions v2.13.0 release: cv/generate skips CV
         # sources named in the manifest but absent from the checkout; the
         # bundled cv/parse emits meta.location/title/summary, tagged
         # experience bullets, the two-line name split (firstname/lastname),
@@ -234,9 +234,15 @@ jobs:
         # certifications (code/name/issuer -> tagged \cvcertlist/\cvcert,
         # chips aligned to the section heading; other styles unchanged), an
         # optional meta.pdf_title backing the PDF metadata title (absent ->
-        # "Lebenslauf") and now \@-spacing auto-injected into meta.author so
+        # "Lebenslauf") and \@-spacing auto-injected into meta.author so
         # the YAML carries no hand-written LaTeX (pdf_author left literal).
-        uses: stklug84/actions/cv/generate@e2d73053a6694442b3310fea817c509d65c1a632  # v2.12.0
+        # v2.13.0 adds style-dependent schema profiles: each source is
+        # validated (and emitted) against the profile of the style it is
+        # built with -- plain (plain-string skills + certifications[].text)
+        # vs tagged ({name,size} skills + structured certs + the tagged-only
+        # concepts/icon/lat-lon fields) -- so cv-academics (plain) and
+        # cv-databricks (tagged) each validate against the shape they consume.
+        uses: stklug84/actions/cv/generate@4d1bec336eee9263f26cece444f81be343061d67  # v2.13.0
         with:
           manifest: ${{ inputs.generate-manifest }}
           templates-dir: ${{ inputs.generate-templates-dir }}
@@ -357,10 +363,10 @@ jobs:
 
       - name: Discover CV variants
         id: scan
-        # Pinned to actions v2.12.0: scan.sh recurses to any depth (for the
+        # Pinned to actions v2.13.0: scan.sh recurses to any depth (for the
         # nested cvs/<yaml>-<lang>/<style>/ layout) and emits an empty
         # matrix instead of failing when there are no variants to build.
-        uses: stklug84/actions/texlive/discover-variants@e2d73053a6694442b3310fea817c509d65c1a632  # v2.12.0
+        uses: stklug84/actions/texlive/discover-variants@4d1bec336eee9263f26cece444f81be343061d67  # v2.13.0
         with:
           root: ${{ inputs.root }}
           default-engine: ${{ inputs.default-engine }}
@@ -437,7 +443,7 @@ jobs:
           path: ${{ inputs.prebuild-into }}
 
       - name: Build ${{ matrix.name }} (${{ matrix.engine }})
-        uses: stklug84/actions/texlive/build-pdf@e2d73053a6694442b3310fea817c509d65c1a632  # v2.12.0
+        uses: stklug84/actions/texlive/build-pdf@4d1bec336eee9263f26cece444f81be343061d67  # v2.13.0
         with:
           working-directory: ${{ matrix.dir }}
           main: ${{ matrix.main }}
@@ -461,7 +467,7 @@ jobs:
 
       - name: Upload build logs on failure
         if: failure() && needs.discover.outputs.local != 'true'
-        uses: stklug84/actions/texlive/upload-build-logs@e2d73053a6694442b3310fea817c509d65c1a632  # v2.12.0
+        uses: stklug84/actions/texlive/upload-build-logs@4d1bec336eee9263f26cece444f81be343061d67  # v2.13.0
         with:
           artifact-name: ${{ env.ARTIFACT_PREFIX }}-${{ matrix.name }}-logs
           paths: |
