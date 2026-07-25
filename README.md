@@ -349,7 +349,7 @@ concurrency:
 
 jobs:
   validate:
-    uses: stklug84/github-workflows/.github/workflows/python-validate.yml@v1.10.0
+    uses: stklug84/github-workflows/.github/workflows/python-validate.yml@v1.18.0
     with:
       paths: "scripts tests"
       mypy-extra-deps: "types-PyYAML Jinja2"
@@ -404,7 +404,7 @@ concurrency:
 
 jobs:
   validate:
-    uses: stklug84/github-workflows/.github/workflows/rdf-validate.yml@v1.10.0
+    uses: stklug84/github-workflows/.github/workflows/rdf-validate.yml@v1.18.0
     with:
       owl-files: "ontology/core.ttl"
 ```
