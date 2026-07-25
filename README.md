@@ -427,6 +427,79 @@ jobs:
 | `run-sparql`     | `true`          | Toggle the sparql job.                                            |
 | `run-owl`        | `true`          | Toggle the owl job (also requires non-empty `owl-files`).         |
 
+## `rdf-generate.yml` — regenerate RDF instance graphs from an inventory
+
+Regenerates RDF instance graphs from a source inventory via the
+[`stklug84/actions/rdf/generate-individuals`](https://github.com/stklug84/actions)
+composite action: pinned Python + rdflib, a cached remote API response
+directory (`actions/cache`), and the generator's `fetch` → `generate` →
+`collection` pipeline with optional repo-specific prepare/finalize commands.
+When the regenerated files differ from the checked-out state, the workflow
+commits them to a branch and opens (or force-updates) a pull request —
+or uploads them as a workflow artifact with `create-pr: false`.
+
+Pull requests are created with the workflow token by default; pass the
+`token` secret (PAT or GitHub App token) when downstream workflows must
+trigger on the created pull request — events raised with the built-in
+`GITHUB_TOKEN` do not start new workflow runs.
+
+### Usage
+
+```yaml
+name: Regenerate knowledge graph
+
+on:
+  push:
+    branches: [main]
+    paths: [collection.csv]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: rdf-generate
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    uses: stklug84/github-workflows/.github/workflows/rdf-generate.yml@v1.20.0
+    permissions:
+      contents: write
+      pull-requests: write
+    with:
+      prepare-command: "python3 scripts/build_vocab.py"
+      finalize-command: "python3 scripts/update_imports.py"
+```
+
+### Inputs & secrets
+
+| Input              | Default                                              | Description                                                    |
+|--------------------|------------------------------------------------------|----------------------------------------------------------------|
+| `runs-on`          | `ubuntu-latest`                                      | Runner label for all jobs.                                     |
+| `generator`        | `scripts/generate_individuals.py`                    | Generator script, run as `python3 <generator> <stage>`.        |
+| `prepare-command`  | `""`                                                 | Shell command before `fetch`; empty skips.                     |
+| `finalize-command` | `""`                                                 | Shell command after `collection`; empty skips.                 |
+| `python-version`   | `3.12`                                               | Python version for `actions/setup-python`.                     |
+| `rdflib-version`   | `>=7,<8`                                             | PEP 440 specifier for rdflib; empty skips the install.         |
+| `cache-dir`        | `/tmp/scryfall_cache`                                | API response cache directory (saved/restored).                 |
+| `cache-key`        | `scryfall-cache`                                     | Cache key prefix.                                              |
+| `cache-hash-files` | `collection.csv`                                     | `hashFiles` pattern(s) mixed into the cache key.               |
+| `run-fetch`        | `true`                                               | Toggle the fetch stage (string, forwarded to the action).      |
+| `run-generate`     | `true`                                               | Toggle the generate stage (string, forwarded to the action).   |
+| `run-collection`   | `true`                                               | Toggle the collection stage (string, forwarded to the action). |
+| `commit-paths`     | `sets MagicCardCollection.ttl MagicCardIndividuals.ttl` | Paths committed to the PR / packed into the artifact.       |
+| `pr-branch`        | `chore/regenerate-graph`                             | Head branch for the regeneration pull request.                 |
+| `pr-title`         | `chore(graph): regenerate instance graphs from inventory` | Pull request title.                                       |
+| `commit-message`   | `chore(graph): regenerate instance graphs from inventory` | Commit message.                                           |
+| `create-pr`        | `true`                                               | Open/update a PR; `false` uploads an artifact instead.         |
+| `artifact-name`    | `regenerated-graph`                                  | Artifact name when `create-pr: false`.                         |
+
+| Secret  | Required | Description                                                                  |
+|---------|----------|------------------------------------------------------------------------------|
+| `token` | no       | Push/PR token; falls back to the workflow token (which does not trigger CI). |
+
 ## Pattern A: prebuild artifact handoff
 
 `latex-build-cv.yml`, `jekyll-deploy-pages.yml`, and `jekyll-validate-pages.yml`
