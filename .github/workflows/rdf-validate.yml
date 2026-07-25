@@ -134,7 +134,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Validate Turtle files
-        uses: stklug84/actions/rdf/validate-turtle@987df4f855360cce06e7d0617dae8f3292e1cbcd  # v2.14.0
+        uses: stklug84/actions/rdf/validate-turtle@071f9e9c98cf0660f0d080ac13cecfc415dac81b  # v2.15.0
         with:
           glob: ${{ inputs.turtle-glob }}
           jena-version: ${{ inputs.jena-version }}
@@ -149,7 +149,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Validate SPARQL files
-        uses: stklug84/actions/rdf/validate-sparql@987df4f855360cce06e7d0617dae8f3292e1cbcd  # v2.14.0
+        uses: stklug84/actions/rdf/validate-sparql@071f9e9c98cf0660f0d080ac13cecfc415dac81b  # v2.15.0
         with:
           glob: ${{ inputs.sparql-glob }}
           python-version: ${{ inputs.python-version }}
@@ -167,7 +167,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Reason over OWL ontologies
-        uses: stklug84/actions/rdf/reason-owl@987df4f855360cce06e7d0617dae8f3292e1cbcd  # v2.14.0
+        uses: stklug84/actions/rdf/reason-owl@071f9e9c98cf0660f0d080ac13cecfc415dac81b  # v2.15.0
         with:
           files: ${{ inputs.owl-files }}
           reasoner: ${{ inputs.owl-reasoner }}
