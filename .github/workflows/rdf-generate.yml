@@ -1,0 +1,263 @@
+---
+# title: Generate RDF workflow
+# authors:
+#   - Steffen Klug <45033201+stklug84@users.noreply.github.com>
+# date: 2026-07-25
+# keywords: [reusable-workflow, rdf]
+# comment: |
+#   Reusable workflow: regenerate RDF instance graphs from a source
+#   inventory via the stklug84/actions/rdf/generate-individuals
+#   composite action — pinned Python + rdflib, a cached remote API
+#   response directory, and the generator's fetch -> generate ->
+#   collection pipeline with optional repo-specific prepare/finalize
+#   commands. When the regenerated files differ from the checked-out
+#   state, the workflow either commits them to a branch and opens (or
+#   updates) a pull request, or uploads them as a workflow artifact
+#   (create-pr: false).
+#
+#   Consume from another repository:
+#
+#     jobs:
+#       generate:
+#         uses: stklug84/github-workflows/.github/workflows/rdf-generate.yml@v1.20.0
+#         permissions:
+#           contents: write
+#           pull-requests: write
+#         with:
+#           prepare-command: "python3 scripts/build_vocab.py"
+#           finalize-command: "python3 scripts/update_imports.py"
+#
+#   Pull requests are created with the workflow token by default; pass
+#   the `token` secret (a PAT or GitHub App token) when downstream
+#   workflows must trigger on the created pull request — events raised
+#   with the built-in GITHUB_TOKEN do not start new workflow runs.
+#   Tool versions and pipeline defaults mirror the composite action
+#   (the workflow input defaults are always forwarded).
+# ---
+name: Generate RDF
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: "Runner label for all jobs."
+        type: string
+        required: false
+        default: "ubuntu-latest"
+      generator:
+        description: >-
+          Path to the generator script, invoked as
+          `python3 <generator> <stage>`. The default mirrors
+          stklug84/actions/rdf/generate-individuals.
+        type: string
+        required: false
+        default: "scripts/generate_individuals.py"
+      prepare-command:
+        description: >-
+          Optional shell command run before the fetch stage (e.g. build
+          vocabulary extracts from the ontology). Empty skips the step.
+        type: string
+        required: false
+        default: ""
+      finalize-command:
+        description: >-
+          Optional shell command run after the collection stage (e.g.
+          rewrite the aggregator's owl:imports block). Empty skips the
+          step.
+        type: string
+        required: false
+        default: ""
+      python-version:
+        description: "Python version for actions/setup-python."
+        type: string
+        required: false
+        default: "3.12"
+      rdflib-version:
+        description: >-
+          PEP 440 version specifier appended to "rdflib" for pip.
+          Empty skips the install. The default mirrors
+          stklug84/actions/rdf/generate-individuals.
+        type: string
+        required: false
+        default: ">=7,<8"
+      cache-dir:
+        description: >-
+          Directory holding the generator's remote API response cache,
+          saved and restored with actions/cache.
+        type: string
+        required: false
+        default: "/tmp/scryfall_cache"
+      cache-key:
+        description: "Cache key prefix for the API response cache."
+        type: string
+        required: false
+        default: "scryfall-cache"
+      cache-hash-files:
+        description: >-
+          File pattern(s) hashed into the cache key (hashFiles syntax);
+          typically the generator's source inventory.
+        type: string
+        required: false
+        default: "collection.csv"
+      run-fetch:
+        description: >-
+          Run the fetch stage ('true'/'false', forwarded as a string to
+          the composite action).
+        type: string
+        required: false
+        default: "true"
+      run-generate:
+        description: >-
+          Run the generate stage ('true'/'false', forwarded as a string
+          to the composite action).
+        type: string
+        required: false
+        default: "true"
+      run-collection:
+        description: >-
+          Run the collection stage ('true'/'false', forwarded as a
+          string to the composite action).
+        type: string
+        required: false
+        default: "true"
+      commit-paths:
+        description: >-
+          Space-separated paths committed to the pull request (or
+          packed into the artifact) when they change.
+        type: string
+        required: false
+        default: "sets MagicCardCollection.ttl MagicCardIndividuals.ttl"
+      pr-branch:
+        description: "Head branch for the regeneration pull request."
+        type: string
+        required: false
+        default: "chore/regenerate-graph"
+      pr-title:
+        description: "Title of the regeneration pull request."
+        type: string
+        required: false
+        default: "chore(graph): regenerate instance graphs from inventory"
+      commit-message:
+        description: "Commit message for the regenerated files."
+        type: string
+        required: false
+        default: "chore(graph): regenerate instance graphs from inventory"
+      create-pr:
+        description: >-
+          Open (or update) a pull request with the regenerated files.
+          When false, the changed files are uploaded as a workflow
+          artifact instead.
+        type: boolean
+        required: false
+        default: true
+      artifact-name:
+        description: >-
+          Artifact name for the regenerated files (create-pr: false).
+        type: string
+        required: false
+        default: "regenerated-graph"
+    secrets:
+      token:
+        description: >-
+          Token used to push the regeneration branch and open the pull
+          request. Falls back to the workflow token; pass a PAT or
+          GitHub App token when downstream workflows must trigger on
+          the created pull request.
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  generate:
+    name: generate (fetch, generate, collection)
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          token: ${{ secrets.token || github.token }}
+
+      - name: Run generation pipeline
+        uses: stklug84/actions/rdf/generate-individuals@9a898e1f4d319b0f175ac25d12b24e046dd0f190  # v2.16.0
+        with:
+          generator: ${{ inputs.generator }}
+          prepare-command: ${{ inputs.prepare-command }}
+          finalize-command: ${{ inputs.finalize-command }}
+          python-version: ${{ inputs.python-version }}
+          rdflib-version: ${{ inputs.rdflib-version }}
+          cache-dir: ${{ inputs.cache-dir }}
+          cache-key: ${{ inputs.cache-key }}
+          cache-hash-files: ${{ inputs.cache-hash-files }}
+          run-fetch: ${{ inputs.run-fetch }}
+          run-generate: ${{ inputs.run-generate }}
+          run-collection: ${{ inputs.run-collection }}
+
+      - name: Detect changes
+        id: diff
+        env:
+          COMMIT_PATHS: ${{ inputs.commit-paths }}
+        run: |
+          set -euo pipefail
+          read -ra PATHS <<< "$COMMIT_PATHS"
+          if [ -n "$(git status --porcelain -- "${PATHS[@]}")" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Regenerated files"
+              echo
+              echo '```'
+              git --no-pager diff --stat -- "${PATHS[@]}"
+              git status --porcelain -- "${PATHS[@]}" | grep '^??' || true
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Generated files are up to date." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Commit and open pull request
+        if: ${{ steps.diff.outputs.changed == 'true' && inputs.create-pr }}
+        env:
+          GH_TOKEN: ${{ secrets.token || github.token }}
+          COMMIT_PATHS: ${{ inputs.commit-paths }}
+          PR_BRANCH: ${{ inputs.pr-branch }}
+          PR_TITLE: ${{ inputs.pr-title }}
+          COMMIT_MESSAGE: ${{ inputs.commit-message }}
+          BASE_REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          read -ra PATHS <<< "$COMMIT_PATHS"
+          git config user.name "github-actions[bot]"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C "$PR_BRANCH"
+          git add -- "${PATHS[@]}"
+          git commit -m "$COMMIT_MESSAGE"
+          git push --force origin "$PR_BRANCH"
+          OPEN_PRS=$(gh pr list --head "$PR_BRANCH" --state open \
+            --json number --jq 'length')
+          if [ "$OPEN_PRS" = "0" ]; then
+            gh pr create --base "$BASE_REF" --head "$PR_BRANCH" \
+              --title "$PR_TITLE" \
+              --body "Automated regeneration of the RDF instance graphs."
+          else
+            echo "Existing open pull request for $PR_BRANCH updated."
+          fi
+
+      - name: Pack changed files
+        if: ${{ steps.diff.outputs.changed == 'true' && !inputs.create-pr }}
+        env:
+          COMMIT_PATHS: ${{ inputs.commit-paths }}
+        run: |
+          set -euo pipefail
+          read -ra PATHS <<< "$COMMIT_PATHS"
+          tar -czf "$RUNNER_TEMP/regenerated-graph.tar.gz" "${PATHS[@]}"
+
+      - name: Upload artifact
+        if: ${{ steps.diff.outputs.changed == 'true' && !inputs.create-pr }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ runner.temp }}/regenerated-graph.tar.gz
+          if-no-files-found: error
