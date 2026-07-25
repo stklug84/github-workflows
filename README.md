@@ -7,9 +7,9 @@ Central, reusable GitHub Actions workflows for this account.
 
 > **Note:** Reusable workflows must live flat in `.github/workflows/` (GitHub
 > does not support subdirectories for them), so files are grouped by filename
-> prefix (`jekyll-*`, `latex-*`, `misc-*`). The shared Jekyll and TeX Live
-> build steps are provided as composite actions from
-> [`stklug84/actions`](https://github.com/stklug84/actions).
+> prefix (`jekyll-*`, `latex-*`, `python-*`, `rdf-*`, `misc-*`). The shared
+> Jekyll, TeX Live, Python and RDF build/check steps are provided as composite
+> actions from [`stklug84/actions`](https://github.com/stklug84/actions).
 
 ## `jekyll-deploy-pages.yml` — build & deploy a Jekyll site to GitHub Pages
 
@@ -320,6 +320,112 @@ jobs:
 | `epubcheck-filter-file` | `""`                   | Optional epubcheck findings filter.                   |
 | `artifact-name`         | `""`                   | Combined artifact name (empty → repo name).           |
 | `runs-on`               | `ubuntu-latest`        | Runner label for all jobs.                            |
+
+## `python-validate.yml` — strict Python static analysis
+
+Runs Ruff (lint + format check), mypy (strict type check) and Bandit
+(security scan) over the given paths, via the composite actions in
+[`stklug84/actions/python`](https://github.com/stklug84/actions). Each job
+reports its real pass/fail status (no `continue-on-error`); consumers choose
+which checks are blocking by listing them as required status checks in branch
+protection / a ruleset, and any job can be toggled off via the `run-*` inputs.
+
+### Usage
+
+```yaml
+name: PR validation
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: python-validate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    uses: stklug84/github-workflows/.github/workflows/python-validate.yml@v1.10.0
+    with:
+      paths: "scripts tests"
+      mypy-extra-deps: "types-PyYAML Jinja2"
+```
+
+### Inputs
+
+| Input               | Default         | Description                                                    |
+|---------------------|-----------------|----------------------------------------------------------------|
+| `runs-on`           | `ubuntu-latest` | Runner label for all jobs.                                     |
+| `paths`             | `.`             | Space-separated files/directories to analyze.                  |
+| `config`            | `""`            | Shared tool config (e.g. `pyproject.toml`), forwarded to all three tools. Empty → per-tool auto-discovery. |
+| `ruff-version`      | `0.16.0`        | Ruff release (mirrors the action's pin).                       |
+| `check-format`      | `true`          | Also run `ruff format --check` (string `'true'`/`'false'`).    |
+| `mypy-version`      | `1.19.0`        | mypy release (mirrors the action's pin).                       |
+| `mypy-strict`       | `true`          | Pass `--strict` to mypy (string `'true'`/`'false'`).           |
+| `mypy-extra-deps`   | `""`            | Space-separated pip packages installed alongside mypy (stubs / imports). |
+| `bandit-version`    | `1.8.0`         | Bandit release, with the toml extra (mirrors the action's pin). |
+| `bandit-severity`   | `low`           | Minimum severity reported (`low`/`medium`/`high`).             |
+| `bandit-confidence` | `low`           | Minimum confidence reported (`low`/`medium`/`high`).           |
+| `run-ruff`          | `true`          | Toggle the ruff job.                                           |
+| `run-mypy`          | `true`          | Toggle the mypy job.                                           |
+| `run-bandit`        | `true`          | Toggle the bandit job.                                         |
+
+## `rdf-validate.yml` — Turtle, SPARQL and OWL validation
+
+Validates Turtle syntax (Apache Jena `riot --validate`), SPARQL query syntax
+(rdflib `prepareQuery` — SPARQL 1.1 *Query* grammar only, Update requests are
+not covered) and OWL consistency/coherence (`robot reason`), via the composite
+actions in [`stklug84/actions/rdf`](https://github.com/stklug84/actions). Each
+job reports its real pass/fail status (no `continue-on-error`) and can be
+toggled off via the `run-*` inputs. The `owl` job additionally requires a
+non-empty `owl-files` list and is skipped otherwise, so Turtle/SPARQL-only
+repositories work with the defaults.
+
+### Usage
+
+```yaml
+name: PR validation
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rdf-validate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    uses: stklug84/github-workflows/.github/workflows/rdf-validate.yml@v1.10.0
+    with:
+      owl-files: "ontology/core.ttl"
+```
+
+### Inputs
+
+| Input            | Default         | Description                                                       |
+|------------------|-----------------|-------------------------------------------------------------------|
+| `runs-on`        | `ubuntu-latest` | Runner label for all jobs.                                        |
+| `turtle-glob`    | `**/*.ttl`      | Glob pattern(s) selecting Turtle files (find-style).              |
+| `jena-version`   | `5.4.0`         | Apache Jena release (mirrors the action's pin).                   |
+| `java-version`   | `21`            | JDK version for the turtle and owl jobs.                          |
+| `sparql-glob`    | `**/*.rq`       | Glob pattern(s) selecting SPARQL files (pathlib-style).           |
+| `python-version` | `3.12`          | Python version for the sparql job.                                |
+| `rdflib-version` | `>=7,<8`        | PEP 440 specifier for rdflib (mirrors the action's default).      |
+| `owl-files`      | `""`            | Space-separated ontology files to reason over. Empty → owl job skipped. |
+| `owl-reasoner`   | `hermit`        | Reasoner for `robot reason` (hermit/elk/whelk/jfact/structural).  |
+| `robot-version`  | `1.9.8`         | ROBOT release, pinned robot.jar (mirrors the action's pin).       |
+| `run-turtle`     | `true`          | Toggle the turtle job.                                            |
+| `run-sparql`     | `true`          | Toggle the sparql job.                                            |
+| `run-owl`        | `true`          | Toggle the owl job (also requires non-empty `owl-files`).         |
 
 ## Pattern A: prebuild artifact handoff
 
