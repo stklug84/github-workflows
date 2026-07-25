@@ -1,0 +1,183 @@
+---
+# title: Validate Python workflow
+# authors:
+#   - Steffen Klug <45033201+stklug84@users.noreply.github.com>
+# date: 2026-07-25
+# keywords: [reusable-workflow, python]
+# comment: |
+#   Reusable workflow: strict Python static analysis via the composite
+#   actions in stklug84/actions/python — Ruff (lint + format check),
+#   mypy (strict type check) and Bandit (security scan). Intended for
+#   pull-request validation.
+#
+#   Consume from another repository:
+#
+#     jobs:
+#       validate:
+#         uses: stklug84/github-workflows/.github/workflows/python-validate.yml@v1.10.0
+#         with:
+#           paths: "scripts tests"
+#           mypy-extra-deps: "types-PyYAML Jinja2"
+#
+#   Every job reports its real pass/fail status (no continue-on-error).
+#   Consumers decide which checks are blocking by listing them as required
+#   status checks in branch protection / a ruleset; any job can also be
+#   toggled off entirely via the run-* inputs. Tool versions default to
+#   the releases pinned inside the composite actions (the workflow input
+#   defaults mirror the action defaults and are always forwarded); the
+#   shared `config` input is handed to all three tools — leave it empty
+#   for each tool's own configuration auto-discovery.
+# ---
+name: Validate Python
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: "Runner label for all jobs."
+        type: string
+        required: false
+        default: "ubuntu-latest"
+      paths:
+        description: "Space-separated files/directories to analyze."
+        type: string
+        required: false
+        default: "."
+      config:
+        description: >-
+          Optional path to a shared tool configuration file (e.g. a
+          pyproject.toml with [tool.ruff], [tool.mypy] and [tool.bandit]
+          tables), forwarded to all three actions. Empty (the default) →
+          each tool's own configuration auto-discovery.
+        type: string
+        required: false
+        default: ""
+      ruff-version:
+        description: >-
+          Ruff release to install. The default mirrors the pin inside
+          stklug84/actions/python/lint.
+        type: string
+        required: false
+        default: "0.16.0"
+      check-format:
+        description: >-
+          Also run `ruff format --check` in the ruff job ('true'/'false',
+          forwarded as a string to the composite action).
+        type: string
+        required: false
+        default: "true"
+      mypy-version:
+        description: >-
+          mypy release to install. The default mirrors the pin inside
+          stklug84/actions/python/typecheck.
+        type: string
+        required: false
+        default: "1.19.0"
+      mypy-strict:
+        description: >-
+          Pass --strict to mypy ('true'/'false', forwarded as a string
+          to the composite action). Set to 'false' when a configuration
+          file governs the strictness settings.
+        type: string
+        required: false
+        default: "true"
+      mypy-extra-deps:
+        description: >-
+          Optional space-separated pip packages installed alongside mypy
+          (type stubs and third-party imports, e.g. "types-PyYAML
+          Jinja2").
+        type: string
+        required: false
+        default: ""
+      bandit-version:
+        description: >-
+          Bandit release to install (with the toml extra). The default
+          mirrors the pin inside stklug84/actions/python/security.
+        type: string
+        required: false
+        default: "1.8.0"
+      bandit-severity:
+        description: >-
+          Minimum Bandit severity reported (--severity-level) — low,
+          medium, or high.
+        type: string
+        required: false
+        default: "low"
+      bandit-confidence:
+        description: >-
+          Minimum Bandit confidence reported (--confidence-level) — low,
+          medium, or high.
+        type: string
+        required: false
+        default: "low"
+      run-ruff:
+        description: "Run the ruff job."
+        type: boolean
+        required: false
+        default: true
+      run-mypy:
+        description: "Run the mypy job."
+        type: boolean
+        required: false
+        default: true
+      run-bandit:
+        description: "Run the bandit job."
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  ruff:
+    name: ruff (lint + format)
+    runs-on: ${{ inputs.runs-on }}
+    if: ${{ inputs.run-ruff }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Run ruff (lint + format check)
+        uses: stklug84/actions/python/lint@987df4f855360cce06e7d0617dae8f3292e1cbcd  # v2.14.0
+        with:
+          paths: ${{ inputs.paths }}
+          config: ${{ inputs.config }}
+          check-format: ${{ inputs.check-format }}
+          ruff-version: ${{ inputs.ruff-version }}
+
+  mypy:
+    name: mypy (strict)
+    runs-on: ${{ inputs.runs-on }}
+    if: ${{ inputs.run-mypy }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Extra stub/import dependencies (mypy-extra-deps) are installed by
+      # the composite action itself, right next to the pinned mypy.
+      - name: Run mypy
+        uses: stklug84/actions/python/typecheck@987df4f855360cce06e7d0617dae8f3292e1cbcd  # v2.14.0
+        with:
+          paths: ${{ inputs.paths }}
+          config: ${{ inputs.config }}
+          strict: ${{ inputs.mypy-strict }}
+          extra-deps: ${{ inputs.mypy-extra-deps }}
+          mypy-version: ${{ inputs.mypy-version }}
+
+  bandit:
+    name: bandit (security)
+    runs-on: ${{ inputs.runs-on }}
+    if: ${{ inputs.run-bandit }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Run bandit
+        uses: stklug84/actions/python/security@987df4f855360cce06e7d0617dae8f3292e1cbcd  # v2.14.0
+        with:
+          paths: ${{ inputs.paths }}
+          config: ${{ inputs.config }}
+          severity: ${{ inputs.bandit-severity }}
+          confidence: ${{ inputs.bandit-confidence }}
+          bandit-version: ${{ inputs.bandit-version }}

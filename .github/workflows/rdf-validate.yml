@@ -1,0 +1,175 @@
+---
+# title: Validate RDF workflow
+# authors:
+#   - Steffen Klug <45033201+stklug84@users.noreply.github.com>
+# date: 2026-07-25
+# keywords: [reusable-workflow, rdf]
+# comment: |
+#   Reusable workflow: validate RDF artifacts via the composite actions
+#   in stklug84/actions/rdf — Turtle syntax (Apache Jena riot), SPARQL
+#   query syntax (rdflib prepareQuery; SPARQL 1.1 Query grammar only,
+#   Update requests are not covered) and OWL consistency/coherence
+#   (ROBOT reason). Intended for pull-request validation.
+#
+#   Consume from another repository:
+#
+#     jobs:
+#       validate:
+#         uses: stklug84/github-workflows/.github/workflows/rdf-validate.yml@v1.10.0
+#         with:
+#           owl-files: "ontology/core.ttl"
+#
+#   Every job reports its real pass/fail status (no continue-on-error).
+#   Consumers decide which checks are blocking by listing them as required
+#   status checks in branch protection / a ruleset; any job can also be
+#   toggled off entirely via the run-* inputs. Tool versions default to
+#   the releases pinned inside the composite actions (the workflow input
+#   defaults mirror the action defaults and are always forwarded). The
+#   owl job additionally requires a non-empty `owl-files` list (the
+#   underlying action has no default) — with the default empty value it
+#   is skipped, so Turtle/SPARQL-only repositories need no toggle.
+# ---
+name: Validate RDF
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: "Runner label for all jobs."
+        type: string
+        required: false
+        default: "ubuntu-latest"
+      turtle-glob:
+        description: >-
+          Space-separated glob pattern(s) selecting the Turtle files to
+          validate (find-style; a pattern without `/` matches by file
+          name anywhere in the tree, `**` crosses directories).
+        type: string
+        required: false
+        default: "**/*.ttl"
+      jena-version:
+        description: >-
+          Apache Jena release to install. The default mirrors the pin
+          inside stklug84/actions/rdf/validate-turtle.
+        type: string
+        required: false
+        default: "5.4.0"
+      java-version:
+        description: >-
+          JDK version for actions/setup-java, used by the turtle and owl
+          jobs.
+        type: string
+        required: false
+        default: "21"
+      sparql-glob:
+        description: >-
+          Space-separated glob pattern(s) selecting the SPARQL query
+          files to validate (Python pathlib style, relative to the
+          working directory; `**` matches any number of directories).
+        type: string
+        required: false
+        default: "**/*.rq"
+      python-version:
+        description: "Python version for actions/setup-python (sparql job)."
+        type: string
+        required: false
+        default: "3.12"
+      rdflib-version:
+        description: >-
+          PEP 440 version specifier appended to "rdflib" for pip (exact
+          pin like "==7.1.4" or a range like ">=7,<8"). The default
+          mirrors stklug84/actions/rdf/validate-sparql.
+        type: string
+        required: false
+        default: ">=7,<8"
+      owl-files:
+        description: >-
+          Space-separated ontology files to reason over; each file is
+          reasoned independently. Empty (the default) skips the owl job
+          — the underlying action requires an explicit file list.
+        type: string
+        required: false
+        default: ""
+      owl-reasoner:
+        description: >-
+          Reasoner for `robot reason --reasoner` — hermit, elk, whelk,
+          jfact, or structural.
+        type: string
+        required: false
+        default: "hermit"
+      robot-version:
+        description: >-
+          ROBOT release to install (pinned robot.jar). The default
+          mirrors the pin inside stklug84/actions/rdf/reason-owl.
+        type: string
+        required: false
+        default: "1.9.8"
+      run-turtle:
+        description: "Run the turtle job."
+        type: boolean
+        required: false
+        default: true
+      run-sparql:
+        description: "Run the sparql job."
+        type: boolean
+        required: false
+        default: true
+      run-owl:
+        description: >-
+          Run the owl job (also requires a non-empty `owl-files`).
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  turtle:
+    name: turtle (riot --validate)
+    runs-on: ${{ inputs.runs-on }}
+    if: ${{ inputs.run-turtle }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate Turtle files
+        uses: stklug84/actions/rdf/validate-turtle@987df4f855360cce06e7d0617dae8f3292e1cbcd  # v2.14.0
+        with:
+          glob: ${{ inputs.turtle-glob }}
+          jena-version: ${{ inputs.jena-version }}
+          java-version: ${{ inputs.java-version }}
+
+  sparql:
+    name: sparql (rdflib parse)
+    runs-on: ${{ inputs.runs-on }}
+    if: ${{ inputs.run-sparql }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate SPARQL files
+        uses: stklug84/actions/rdf/validate-sparql@987df4f855360cce06e7d0617dae8f3292e1cbcd  # v2.14.0
+        with:
+          glob: ${{ inputs.sparql-glob }}
+          python-version: ${{ inputs.python-version }}
+          rdflib-version: ${{ inputs.rdflib-version }}
+
+  owl:
+    name: owl (robot reason)
+    runs-on: ${{ inputs.runs-on }}
+    # The reason-owl action's `files` input is required and has no
+    # default, so an empty owl-files must skip the job rather than call
+    # the action with an empty list.
+    if: ${{ inputs.run-owl && inputs.owl-files != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Reason over OWL ontologies
+        uses: stklug84/actions/rdf/reason-owl@987df4f855360cce06e7d0617dae8f3292e1cbcd  # v2.14.0
+        with:
+          files: ${{ inputs.owl-files }}
+          reasoner: ${{ inputs.owl-reasoner }}
+          robot-version: ${{ inputs.robot-version }}
+          java-version: ${{ inputs.java-version }}
