@@ -404,7 +404,7 @@ concurrency:
 
 jobs:
   validate:
-    uses: stklug84/github-workflows/.github/workflows/rdf-validate.yml@v1.18.0
+    uses: stklug84/github-workflows/.github/workflows/rdf-validate.yml@v1.21.0
     with:
       owl-files: "ontology/core.ttl"
 ```
@@ -422,6 +422,7 @@ jobs:
 | `rdflib-version` | `>=7,<8`        | PEP 440 specifier for rdflib (mirrors the action's default).      |
 | `owl-files`      | `""`            | Space-separated ontology files to reason over. Empty → owl job skipped. |
 | `owl-reasoner`   | `hermit`        | Reasoner for `robot reason` (hermit/elk/whelk/jfact/structural).  |
+| `owl-catalog`    | `""`            | Optional OASIS XML catalog for `robot --catalog` (owl:imports via urn: etc.). |
 | `robot-version`  | `1.9.8`         | ROBOT release, pinned robot.jar (mirrors the action's pin).       |
 | `run-turtle`     | `true`          | Toggle the turtle job.                                            |
 | `run-sparql`     | `true`          | Toggle the sparql job.                                            |

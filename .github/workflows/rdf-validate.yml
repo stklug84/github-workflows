@@ -15,7 +15,7 @@
 #
 #     jobs:
 #       validate:
-#         uses: stklug84/github-workflows/.github/workflows/rdf-validate.yml@v1.18.0
+#         uses: stklug84/github-workflows/.github/workflows/rdf-validate.yml@v1.21.0
 #         with:
 #           owl-files: "ontology/core.ttl"
 #
@@ -97,6 +97,14 @@ on:
         type: string
         required: false
         default: "hermit"
+      owl-catalog:
+        description: >-
+          Optional OASIS XML catalog passed to `robot --catalog`,
+          mapping owl:imports IRIs (e.g. urn:) to local files so the
+          full import closure is reasoned. Empty disables the flag.
+        type: string
+        required: false
+        default: ""
       robot-version:
         description: >-
           ROBOT release to install (pinned robot.jar). The default
@@ -167,9 +175,10 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Reason over OWL ontologies
-        uses: stklug84/actions/rdf/reason-owl@071f9e9c98cf0660f0d080ac13cecfc415dac81b  # v2.15.0
+        uses: stklug84/actions/rdf/reason-owl@fcf81eaf154cfbf73ba88118d5c045dbf5c3815e  # v2.17.0
         with:
           files: ${{ inputs.owl-files }}
           reasoner: ${{ inputs.owl-reasoner }}
+          catalog: ${{ inputs.owl-catalog }}
           robot-version: ${{ inputs.robot-version }}
           java-version: ${{ inputs.java-version }}
