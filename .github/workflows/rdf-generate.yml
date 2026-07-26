@@ -180,7 +180,7 @@ jobs:
           token: ${{ secrets.token || github.token }}
 
       - name: Run generation pipeline
-        uses: stklug84/actions/rdf/generate-individuals@9a898e1f4d319b0f175ac25d12b24e046dd0f190  # v2.16.0
+        uses: stklug84/actions/rdf/generate-individuals@fcf81eaf154cfbf73ba88118d5c045dbf5c3815e  # v2.17.0
         with:
           generator: ${{ inputs.generator }}
           prepare-command: ${{ inputs.prepare-command }}
@@ -256,7 +256,7 @@ jobs:
 
       - name: Upload artifact
         if: ${{ steps.diff.outputs.changed == 'true' && !inputs.create-pr }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.artifact-name }}
           path: ${{ runner.temp }}/regenerated-graph.tar.gz
