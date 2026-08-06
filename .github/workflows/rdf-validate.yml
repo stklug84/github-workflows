@@ -27,7 +27,10 @@
 #   defaults mirror the action defaults and are always forwarded). The
 #   owl job additionally requires a non-empty `owl-files` list (the
 #   underlying action has no default) — with the default empty value it
-#   is skipped, so Turtle/SPARQL-only repositories need no toggle.
+#   is skipped, so Turtle/SPARQL-only repositories need no toggle. An
+#   optional `owl-prepare-command` runs before reasoning, e.g. to
+#   regenerate an untracked OASIS XML catalog from the checked-out
+#   ontologies.
 # ---
 name: Validate RDF
 
@@ -105,6 +108,14 @@ on:
         type: string
         required: false
         default: ""
+      owl-prepare-command:
+        description: >-
+          Optional shell command run before reasoning (e.g. regenerate
+          an untracked OASIS XML catalog from the checked-out
+          ontologies). Empty skips the step.
+        type: string
+        required: false
+        default: ""
       robot-version:
         description: >-
           ROBOT release to install (pinned robot.jar). The default
@@ -173,6 +184,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      - name: Run prepare command
+        if: ${{ inputs.owl-prepare-command != '' }}
+        env:
+          PREPARE_COMMAND: ${{ inputs.owl-prepare-command }}
+        run: |
+          set -euo pipefail
+          bash -c "$PREPARE_COMMAND"
 
       - name: Reason over OWL ontologies
         uses: stklug84/actions/rdf/reason-owl@fcf81eaf154cfbf73ba88118d5c045dbf5c3815e  # v2.17.0
