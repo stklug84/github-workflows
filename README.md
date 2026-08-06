@@ -423,6 +423,7 @@ jobs:
 | `owl-files`      | `""`            | Space-separated ontology files to reason over. Empty → owl job skipped. |
 | `owl-reasoner`   | `hermit`        | Reasoner for `robot reason` (hermit/elk/whelk/jfact/structural).  |
 | `owl-catalog`    | `""`            | Optional OASIS XML catalog for `robot --catalog` (owl:imports via urn: etc.). |
+| `owl-prepare-command` | `""`       | Optional shell command run before reasoning (e.g. regenerate an untracked catalog). Empty skips the step. |
 | `robot-version`  | `1.9.8`         | ROBOT release, pinned robot.jar (mirrors the action's pin).       |
 | `run-turtle`     | `true`          | Toggle the turtle job.                                            |
 | `run-sparql`     | `true`          | Toggle the sparql job.                                            |
