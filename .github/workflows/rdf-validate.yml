@@ -150,7 +150,7 @@ jobs:
     if: ${{ inputs.run-turtle }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Validate Turtle files
         uses: stklug84/actions/rdf/validate-turtle@fcf81eaf154cfbf73ba88118d5c045dbf5c3815e  # v2.17.0
@@ -165,7 +165,7 @@ jobs:
     if: ${{ inputs.run-sparql }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Validate SPARQL files
         uses: stklug84/actions/rdf/validate-sparql@fcf81eaf154cfbf73ba88118d5c045dbf5c3815e  # v2.17.0
@@ -183,7 +183,7 @@ jobs:
     if: ${{ inputs.run-owl && inputs.owl-files != '' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Run prepare command
         if: ${{ inputs.owl-prepare-command != '' }}
