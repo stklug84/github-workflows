@@ -180,7 +180,7 @@ jobs:
           token: ${{ secrets.token || github.token }}
 
       - name: Run generation pipeline
-        uses: stklug84/actions/rdf/generate-individuals@fcf81eaf154cfbf73ba88118d5c045dbf5c3815e  # v2.17.0
+        uses: stklug84/actions/rdf/generate-individuals@f90d43d1a4e9f22cbfaa8a87b1555981c407e124  # v2.17.1
         with:
           generator: ${{ inputs.generator }}
           prepare-command: ${{ inputs.prepare-command }}

@@ -103,7 +103,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Ruby with Bundler
-        uses: stklug84/actions/ruby/setup-ruby-bundler@fcf81eaf154cfbf73ba88118d5c045dbf5c3815e  # v2.17.0
+        uses: stklug84/actions/ruby/setup-ruby-bundler@f90d43d1a4e9f22cbfaa8a87b1555981c407e124  # v2.17.1
         with:
           ruby-version: ${{ inputs.ruby-version }}
 
@@ -129,7 +129,7 @@ jobs:
 
       - name: Build with Jekyll (Bundler)
         # configure-pages exports the correct baseurl for project sites.
-        uses: stklug84/actions/jekyll/jekyll-build@fcf81eaf154cfbf73ba88118d5c045dbf5c3815e  # v2.17.0
+        uses: stklug84/actions/jekyll/jekyll-build@f90d43d1a4e9f22cbfaa8a87b1555981c407e124  # v2.17.1
         with:
           source: ${{ inputs.source }}
           destination: ${{ inputs.destination }}
