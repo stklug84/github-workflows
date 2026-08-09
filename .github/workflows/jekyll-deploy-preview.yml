@@ -77,7 +77,7 @@ jobs:
       KEEP_LAST: ${{ inputs.keep-last }}
     steps:
       - name: Checkout source repo
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
 
@@ -114,7 +114,7 @@ jobs:
         # Trust model: `previews-repo` is a workflow_call input and can only be
         # set in the caller's committed workflow file (write access required).
         # Checked-out content is never executed, only written to and pushed.
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           repository: ${{ inputs.previews-repo }}
           token: ${{ secrets.previews-deploy-token }}

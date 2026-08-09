@@ -136,7 +136,7 @@ jobs:
     if: ${{ inputs.run-ruff }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Run ruff (lint + format check)
         uses: stklug84/actions/python/lint@fcf81eaf154cfbf73ba88118d5c045dbf5c3815e  # v2.17.0
@@ -152,7 +152,7 @@ jobs:
     if: ${{ inputs.run-mypy }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       # Extra stub/import dependencies (mypy-extra-deps) are installed by
       # the composite action itself, right next to the pinned mypy.
@@ -171,7 +171,7 @@ jobs:
     if: ${{ inputs.run-bandit }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Run bandit
         uses: stklug84/actions/python/security@fcf81eaf154cfbf73ba88118d5c045dbf5c3815e  # v2.17.0
