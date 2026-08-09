@@ -153,7 +153,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Validate Turtle files
-        uses: stklug84/actions/rdf/validate-turtle@071f9e9c98cf0660f0d080ac13cecfc415dac81b  # v2.15.0
+        uses: stklug84/actions/rdf/validate-turtle@fcf81eaf154cfbf73ba88118d5c045dbf5c3815e  # v2.17.0
         with:
           glob: ${{ inputs.turtle-glob }}
           jena-version: ${{ inputs.jena-version }}
@@ -168,7 +168,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Validate SPARQL files
-        uses: stklug84/actions/rdf/validate-sparql@071f9e9c98cf0660f0d080ac13cecfc415dac81b  # v2.15.0
+        uses: stklug84/actions/rdf/validate-sparql@fcf81eaf154cfbf73ba88118d5c045dbf5c3815e  # v2.17.0
         with:
           glob: ${{ inputs.sparql-glob }}
           python-version: ${{ inputs.python-version }}
