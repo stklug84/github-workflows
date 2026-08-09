@@ -246,7 +246,7 @@ jobs:
         # the optional per-style overrides.<style> meta/contact block, and
         # deep-merges a gitignored sibling <source>.local.yml overlay (for
         # local-only PII fields) when present.
-        uses: stklug84/actions/cv/generate@fcf81eaf154cfbf73ba88118d5c045dbf5c3815e  # v2.17.0
+        uses: stklug84/actions/cv/generate@f90d43d1a4e9f22cbfaa8a87b1555981c407e124  # v2.17.1
         with:
           manifest: ${{ inputs.generate-manifest }}
           templates-dir: ${{ inputs.generate-templates-dir }}
@@ -370,7 +370,7 @@ jobs:
         # Pinned to actions v2.15.0: scan.sh recurses to any depth (for the
         # nested cvs/<yaml>-<lang>/<style>/ layout) and emits an empty
         # matrix instead of failing when there are no variants to build.
-        uses: stklug84/actions/texlive/discover-variants@fcf81eaf154cfbf73ba88118d5c045dbf5c3815e  # v2.17.0
+        uses: stklug84/actions/texlive/discover-variants@f90d43d1a4e9f22cbfaa8a87b1555981c407e124  # v2.17.1
         with:
           root: ${{ inputs.root }}
           default-engine: ${{ inputs.default-engine }}
@@ -447,7 +447,7 @@ jobs:
           path: ${{ inputs.prebuild-into }}
 
       - name: Build ${{ matrix.name }} (${{ matrix.engine }})
-        uses: stklug84/actions/texlive/build-pdf@fcf81eaf154cfbf73ba88118d5c045dbf5c3815e  # v2.17.0
+        uses: stklug84/actions/texlive/build-pdf@f90d43d1a4e9f22cbfaa8a87b1555981c407e124  # v2.17.1
         with:
           working-directory: ${{ matrix.dir }}
           main: ${{ matrix.main }}
@@ -471,7 +471,7 @@ jobs:
 
       - name: Upload build logs on failure
         if: failure() && needs.discover.outputs.local != 'true'
-        uses: stklug84/actions/texlive/upload-build-logs@fcf81eaf154cfbf73ba88118d5c045dbf5c3815e  # v2.17.0
+        uses: stklug84/actions/texlive/upload-build-logs@f90d43d1a4e9f22cbfaa8a87b1555981c407e124  # v2.17.1
         with:
           artifact-name: ${{ env.ARTIFACT_PREFIX }}-${{ matrix.name }}-logs
           paths: |
