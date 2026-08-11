@@ -191,7 +191,7 @@ jobs:
           PREPARE_COMMAND: ${{ inputs.owl-prepare-command }}
         run: |
           set -euo pipefail
-          bash -c "$PREPARE_COMMAND"
+          bash -euo pipefail -c "$PREPARE_COMMAND"
 
       - name: Reason over OWL ontologies
         uses: stklug84/actions/rdf/reason-owl@f90d43d1a4e9f22cbfaa8a87b1555981c407e124  # v2.17.1

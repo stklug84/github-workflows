@@ -43,9 +43,14 @@
 #           unpack-glob: "dist/*.tar.gz"
 #           validate-command: 'my-validate "$BUNDLE_DIR"'
 #
-#   Every command input runs through `bash -c` with these variables
-#   exported: RELEASE_TAG (the full tag), RELEASE_VERSION (the tag with
-#   `tag-prefix` stripped) and BUNDLE_DIR (the unpack directory). The
+#   Every command input runs through `bash -euo pipefail -c` with these
+#   variables exported: RELEASE_TAG (the full tag), RELEASE_VERSION (the
+#   tag with `tag-prefix` stripped) and BUNDLE_DIR (the unpack
+#   directory). The explicit flags matter: `bash -c` starts a fresh
+#   shell that does NOT inherit the step's `set -euo pipefail`, so
+#   without them a multi-line hook whose LAST line succeeds would report
+#   success even after an earlier line failed -- and this workflow would
+#   publish an artifact its own smoke test had rejected. The
 #   caller must grant `contents: write` — called workflows do not inherit
 #   the caller's permissions.
 # ---
@@ -219,7 +224,7 @@ jobs:
           INSTALL_COMMAND: ${{ inputs.install-command }}
         run: |
           set -euo pipefail
-          bash -c "$INSTALL_COMMAND"
+          bash -euo pipefail -c "$INSTALL_COMMAND"
 
       - name: Run prepare command
         if: ${{ inputs.prepare-command != '' }}
@@ -227,14 +232,14 @@ jobs:
           PREPARE_COMMAND: ${{ inputs.prepare-command }}
         run: |
           set -euo pipefail
-          bash -c "$PREPARE_COMMAND"
+          bash -euo pipefail -c "$PREPARE_COMMAND"
 
       - name: Build the release artifacts
         env:
           BUILD_COMMAND: ${{ inputs.build-command }}
         run: |
           set -euo pipefail
-          bash -c "$BUILD_COMMAND"
+          bash -euo pipefail -c "$BUILD_COMMAND"
 
       - name: Unpack the archive
         if: ${{ inputs.unpack-glob != '' }}
@@ -259,7 +264,7 @@ jobs:
           STAGE_COMMAND: ${{ inputs.stage-command }}
         run: |
           set -euo pipefail
-          bash -c "$STAGE_COMMAND"
+          bash -euo pipefail -c "$STAGE_COMMAND"
 
       - name: Run smoke command
         if: ${{ inputs.smoke-command != '' }}
@@ -267,7 +272,7 @@ jobs:
           SMOKE_COMMAND: ${{ inputs.smoke-command }}
         run: |
           set -euo pipefail
-          bash -c "$SMOKE_COMMAND"
+          bash -euo pipefail -c "$SMOKE_COMMAND"
 
       - name: Run validate command
         if: ${{ inputs.validate-command != '' }}
@@ -275,7 +280,7 @@ jobs:
           VALIDATE_COMMAND: ${{ inputs.validate-command }}
         run: |
           set -euo pipefail
-          bash -c "$VALIDATE_COMMAND"
+          bash -euo pipefail -c "$VALIDATE_COMMAND"
 
       - name: Create the GitHub Release
         env:
