@@ -2,7 +2,7 @@
 # title: CodeQL workflow
 # authors:
 #   - Steffen Klug <45033201+stklug84@users.noreply.github.com>
-# date: 2026-06-10
+# date: 2026-08-11
 # keywords: [infrastructure, security]
 # comment: |
 #   CodeQL code scanning for the `actions` language, which analyzes the
@@ -11,6 +11,12 @@
 #   poisoning, ...). The security-extended suite adds the unpinned-tag
 #   query. Bash code is not a CodeQL language and is covered by
 #   shellcheck via actionlint in the Lint workflow instead.
+#
+#   Like lint.yml, this calls the reusable workflow published from this
+#   same repository through a local `./.github/workflows/` reference: the
+#   catalog scans itself with the working-tree copy of the workflow it
+#   publishes, so a regression fails the pull request that introduces it
+#   rather than the next consumer.
 # ---
 name: CodeQL
 
@@ -29,25 +35,11 @@ permissions:
   contents: read
 
 jobs:
-  analyze:
-    name: Analyze (actions)
-    runs-on: ubuntu-latest
+  codeql:
+    uses: ./.github/workflows/repo-codeql.yml
     permissions:
       security-events: write
       contents: read
       actions: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3  # v4.37.6
-        with:
-          languages: actions
-          build-mode: none
-          queries: security-extended
-
-      - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3  # v4.37.6
-        with:
-          category: /language:actions
+    with:
+      languages: '["actions"]'

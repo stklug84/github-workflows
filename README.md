@@ -7,9 +7,10 @@ Central, reusable GitHub Actions workflows for this account.
 
 > **Note:** Reusable workflows must live flat in `.github/workflows/` (GitHub
 > does not support subdirectories for them), so files are grouped by filename
-> prefix (`jekyll-*`, `latex-*`, `python-*`, `rdf-*`, `repo-*`, `misc-*`). The
-> shared Jekyll, TeX Live, Python and RDF build/check steps are provided as
-> composite actions from [`stklug84/actions`](https://github.com/stklug84/actions).
+> prefix (`jekyll-*`, `latex-*`, `python-*`, `rdf-*`, `release-*`, `repo-*`,
+> `misc-*`). The shared Jekyll, TeX Live, Python and RDF build/check steps are
+> provided as composite actions from
+> [`stklug84/actions`](https://github.com/stklug84/actions).
 
 ## `jekyll-deploy-pages.yml` — build & deploy a Jekyll site to GitHub Pages
 
@@ -511,13 +512,14 @@ jobs:
 |---------|----------|------------------------------------------------------------------------------|
 | `token` | no       | Push/PR token; falls back to the workflow token (which does not trigger CI). |
 
-## `rdf-release-bundle.yml` — publish a validated bundle as a GitHub Release
+## `release-artifact.yml` — publish a validated artifact as a GitHub Release
 
-Publishes a graph (or any other build artifact) as a versioned GitHub Release
-on a tag push, **after** the artifact has been validated. The workflow owns the
-sequence and the guardrails — tag-format check, Python setup, install, build,
-unpack, staged verification, release — while every repository-specific step
-arrives as a shell command input:
+Publishes a build artifact — a graph bundle, a Python wheel, anything a tag
+should ship — as a versioned GitHub Release on a tag push, **after** the
+artifact has been validated. The workflow owns the sequence and the guardrails
+— tag-format check, Python setup, install, build, unpack, staged verification,
+release — while every repository-specific step arrives as a shell command
+input:
 
 ```text
 check tag → setup python → install → prepare-command → build-command
@@ -548,7 +550,7 @@ permissions:
 
 jobs:
   release:
-    uses: stklug84/github-workflows/.github/workflows/rdf-release-bundle.yml@v2.0.0
+    uses: stklug84/github-workflows/.github/workflows/release-artifact.yml@v3.0.0
     permissions:
       contents: write
     with:
@@ -619,7 +621,7 @@ concurrency:
 
 jobs:
   lint:
-    uses: stklug84/github-workflows/.github/workflows/repo-lint.yml@v2.0.0
+    uses: stklug84/github-workflows/.github/workflows/repo-lint.yml@v3.0.0
     with:
       hadolint-dockerfile: ".github/docker/texlive/Dockerfile"
       markdownlint-globs: |
@@ -643,6 +645,64 @@ jobs:
 | `run-yamllint`        | `true`              | Toggle the yamllint job.                                      |
 | `run-markdownlint`    | `true`              | Toggle the markdownlint job.                                  |
 | `run-hadolint`        | `true`              | Toggle the hadolint job (also requires `hadolint-dockerfile`). |
+
+## `repo-codeql.yml` — CodeQL code scanning
+
+CodeQL analysis matrixed over the languages the caller supplies. Every
+repository of this account previously ran a hand-copied version of the same
+three steps (checkout → init → analyze), and the copies had already drifted
+apart on structure and weekly schedule.
+
+The caller owns the trigger — a reusable workflow cannot declare one — and
+must grant `security-events: write`, since called workflows do not inherit
+the caller's permissions.
+
+`languages` is a JSON array so it can drive the matrix; each entry reports its
+own `Analyze (<language>)` check, which is the name a required status check
+must reference.
+
+`build-mode: none` suits interpreted and non-compiled targets (`actions`,
+`python`, `javascript-typescript`, `ruby`). Compiled languages need
+`autobuild` or a manual build, which this workflow deliberately does not
+model.
+
+### Usage
+
+```yaml
+name: CodeQL
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: '30 5 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  codeql:
+    uses: stklug84/github-workflows/.github/workflows/repo-codeql.yml@v3.0.0
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    with:
+      languages: '["actions", "python"]'
+```
+
+### Inputs
+
+| Input           | Default             | Description                                                    |
+|-----------------|---------------------|-----------------------------------------------------------------|
+| `runs-on`       | `ubuntu-latest`     | Runner label for the analysis job.                             |
+| `languages`     | `'["actions"]'`     | JSON array of CodeQL languages; drives the job matrix.         |
+| `queries`       | `security-extended` | Query suite for `codeql-action/init`.                          |
+| `build-mode`    | `none`              | CodeQL build mode; compiled languages need `autobuild`.        |
+| `config-file`   | `""`                | Optional CodeQL config file (query filters, path exclusions).  |
+| `fail-on-error` | `false`             | Fail fast on the first failing matrix entry.                   |
 
 ## Pattern A: prebuild artifact handoff
 

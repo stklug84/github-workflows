@@ -1,0 +1,130 @@
+---
+# title: Repository CodeQL workflow
+# authors:
+#   - Steffen Klug <45033201+stklug84@users.noreply.github.com>
+# date: 2026-08-11
+# keywords: [reusable-workflow, security]
+# comment: |
+#   Reusable workflow: CodeQL code scanning, matrixed over the languages
+#   the calling repository supplies. Every repository of this account ran
+#   a hand-copied version of the same three steps (checkout, init,
+#   analyze); the copies had already drifted apart on structure and
+#   schedule, which is what this replaces.
+#
+#   Consume from another repository:
+#
+#     on:
+#       pull_request:
+#         branches: [main]
+#       push:
+#         branches: [main]
+#       schedule:
+#         - cron: '30 5 * * 1'
+#
+#     permissions:
+#       contents: read
+#
+#     jobs:
+#       codeql:
+#         uses: stklug84/github-workflows/.github/workflows/repo-codeql.yml@v3.0.0
+#         permissions:
+#           security-events: write
+#           contents: read
+#           actions: read
+#         with:
+#           languages: '["actions", "python"]'
+#
+#   The caller owns the trigger — a reusable workflow cannot declare one —
+#   and must grant security-events: write, since called workflows do not
+#   inherit the caller's permissions.
+#
+#   `languages` is a JSON array so it can drive the job matrix. The check
+#   name is `Analyze (<language>)` per entry, which is what a required
+#   status check must reference.
+#
+#   `build-mode: none` suits interpreted and non-compiled targets
+#   (actions, python, javascript-typescript, ruby, go modules without a
+#   build step). Compiled languages need `build-mode: autobuild` or a
+#   manual build, which this workflow deliberately does not model.
+# ---
+name: Repository CodeQL
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: "Runner label for the analysis job."
+        type: string
+        required: false
+        default: "ubuntu-latest"
+      languages:
+        description: >-
+          JSON array of CodeQL languages to analyze, e.g.
+          '["actions", "python"]'. Drives the job matrix, so each entry
+          reports its own `Analyze (<language>)` check.
+        type: string
+        required: false
+        default: '["actions"]'
+      queries:
+        description: >-
+          Query suite passed to codeql-action/init. security-extended
+          adds the unpinned-action-tag query on top of the defaults.
+        type: string
+        required: false
+        default: "security-extended"
+      build-mode:
+        description: >-
+          CodeQL build mode. `none` is correct for interpreted targets;
+          compiled languages need `autobuild`.
+        type: string
+        required: false
+        default: "none"
+      config-file:
+        description: >-
+          Optional path to a CodeQL configuration file (query filters,
+          path exclusions). Empty disables the flag.
+        type: string
+        required: false
+        default: ""
+      fail-on-error:
+        description: >-
+          Fail the job when a matrix entry fails, rather than letting the
+          remaining languages finish first.
+        type: boolean
+        required: false
+        default: false
+
+# Analysis results are uploaded to code scanning, which needs
+# security-events: write. Callers must grant it on the calling job too.
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ${{ inputs.runs-on }}
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: ${{ inputs.fail-on-error }}
+      matrix:
+        language: ${{ fromJSON(inputs.languages) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3  # v4.37.6
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ inputs.build-mode }}
+          queries: ${{ inputs.queries }}
+          config-file: ${{ inputs.config-file }}
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3  # v4.37.6
+        with:
+          category: /language:${{ matrix.language }}
