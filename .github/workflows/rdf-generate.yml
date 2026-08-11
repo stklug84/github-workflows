@@ -15,17 +15,32 @@
 #   updates) a pull request, or uploads them as a workflow artifact
 #   (create-pr: false).
 #
+#   PRECONDITION: the generator's source inventory must be COMMITTED.
+#   Every stage reads it, so a repository that keeps its inventory
+#   untracked (a private export, a gitignored dump) cannot use this
+#   workflow at all — the generator exits before the first stage. There
+#   is no runner-side substitute; check the inventory in, or regenerate
+#   locally.
+#
 #   Consume from another repository:
 #
 #     jobs:
 #       generate:
-#         uses: stklug84/github-workflows/.github/workflows/rdf-generate.yml@v1.20.0
+#         uses: stklug84/github-workflows/.github/workflows/rdf-generate.yml@v2.0.0
 #         permissions:
 #           contents: write
 #           pull-requests: write
 #         with:
+#           generator: "scripts/generate_individuals.py"
+#           cache-hash-files: "inventory.csv"
+#           commit-paths: "sets aggregate.ttl"
 #           prepare-command: "python3 scripts/build_vocab.py"
 #           finalize-command: "python3 scripts/update_imports.py"
+#
+#   `generator`, `cache-hash-files` and `commit-paths` are required: they
+#   name the calling repository's own files and have no defensible
+#   default. (Before v2 they defaulted to one specific repository's
+#   paths, which silently produced an empty commit set anywhere else.)
 #
 #   Pull requests are created with the workflow token by default; pass
 #   the `token` secret (a PAT or GitHub App token) when downstream
@@ -46,12 +61,10 @@ on:
         default: "ubuntu-latest"
       generator:
         description: >-
-          Path to the generator script, invoked as
-          `python3 <generator> <stage>`. The default mirrors
-          stklug84/actions/rdf/generate-individuals.
+          Path to the generator script in the calling repository,
+          invoked as `python3 <generator> <stage>`.
         type: string
-        required: false
-        default: "scripts/generate_individuals.py"
+        required: true
       prepare-command:
         description: >-
           Optional shell command run before the fetch stage (e.g. build
@@ -86,19 +99,19 @@ on:
           saved and restored with actions/cache.
         type: string
         required: false
-        default: "/tmp/scryfall_cache"
+        default: "/tmp/rdf-generate-cache"
       cache-key:
         description: "Cache key prefix for the API response cache."
         type: string
         required: false
-        default: "scryfall-cache"
+        default: "rdf-generate-cache"
       cache-hash-files:
         description: >-
-          File pattern(s) hashed into the cache key (hashFiles syntax);
-          typically the generator's source inventory.
+          File pattern(s) hashed into the cache key (hashFiles syntax) —
+          the generator's source inventory, which must be committed for
+          this workflow to run at all.
         type: string
-        required: false
-        default: "collection.csv"
+        required: true
       run-fetch:
         description: >-
           Run the fetch stage ('true'/'false', forwarded as a string to
@@ -123,10 +136,10 @@ on:
       commit-paths:
         description: >-
           Space-separated paths committed to the pull request (or
-          packed into the artifact) when they change.
+          packed into the artifact) when they change — the generated
+          artifacts of the calling repository.
         type: string
-        required: false
-        default: "sets MagicCardCollection.ttl MagicCardIndividuals.ttl"
+        required: true
       pr-branch:
         description: "Head branch for the regeneration pull request."
         type: string

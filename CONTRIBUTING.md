@@ -23,7 +23,8 @@ prefix:
 .github/workflows/jekyll-*.yml   # Jekyll build/deploy/validate
 .github/workflows/latex-*.yml    # LaTeX document builds
 .github/workflows/python-*.yml   # Python static analysis
-.github/workflows/rdf-*.yml      # RDF/Turtle/SPARQL/OWL validation
+.github/workflows/rdf-*.yml      # RDF validation, generation and release
+.github/workflows/repo-*.yml     # repository hygiene (lint, ...)
 .github/workflows/misc-*.yml     # everything else
 .github/workflows/lint.yml       # repository CI (not reusable)
 .github/workflows/codeql.yml     # repository CI (not reusable)
@@ -66,8 +67,11 @@ here twice.
 ## Linting
 
 Pull requests must pass the `Lint` workflow
-(`.github/workflows/lint.yml`). Run the same checks locally before
-pushing (requires `actionlint`, `yamllint`, `npx`):
+(`.github/workflows/lint.yml`), which is a thin caller of the reusable
+`repo-lint.yml` in this same repository — the catalog lints itself with
+the workflow it publishes, so a regression there fails this repository's
+own CI first. Run the same checks locally before pushing (requires
+`actionlint`, `yamllint`, `npx`):
 
 ```bash
 actionlint
