@@ -1,0 +1,311 @@
+---
+# title: Release RDF bundle workflow
+# authors:
+#   - Steffen Klug <45033201+stklug84@users.noreply.github.com>
+# date: 2026-08-11
+# keywords: [reusable-workflow, rdf, packaging, release]
+# comment: |
+#   Reusable workflow: publish a graph (or any other build artifact) as a
+#   versioned GitHub Release on a tag push, with the artifact validated
+#   before it is published.
+#
+#   The workflow owns the *sequence* and the guardrails — tag-format
+#   check, Python setup, install, build, unpack, staged verification,
+#   release — while every repository-specific step arrives as a shell
+#   command input. Each hook runs as its own named step so a failure
+#   points at the stage that produced it.
+#
+#     check tag -> setup python -> install -> prepare-command
+#       -> build-command -> unpack -> stage-command -> smoke-command
+#       -> validate-command -> gh release create
+#
+#   Consume from another repository (the caller owns the trigger; a
+#   reusable workflow cannot declare one):
+#
+#     on:
+#       push:
+#         tags: ["graph-*"]
+#
+#     permissions:
+#       contents: write
+#
+#     jobs:
+#       release:
+#         uses: stklug84/github-workflows/.github/workflows/rdf-release-bundle.yml@v2.0.0
+#         permissions:
+#           contents: write
+#         with:
+#           tag-prefix: "graph-"
+#           version-pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+#           install-command: 'pip install ".[validate]"'
+#           build-command: 'python3 scripts/build_bundle.py --version "$RELEASE_VERSION"'
+#           unpack-glob: "dist/*.tar.gz"
+#           validate-command: 'my-validate "$BUNDLE_DIR"'
+#
+#   Every command input runs through `bash -c` with these variables
+#   exported: RELEASE_TAG (the full tag), RELEASE_VERSION (the tag with
+#   `tag-prefix` stripped) and BUNDLE_DIR (the unpack directory). The
+#   caller must grant `contents: write` — called workflows do not inherit
+#   the caller's permissions.
+# ---
+name: Release RDF bundle
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: "Runner label for the job."
+        type: string
+        required: false
+        default: "ubuntu-latest"
+      python-version:
+        description: "Python version for actions/setup-python."
+        type: string
+        required: false
+        default: "3.12"
+      tag-prefix:
+        description: >-
+          Prefix stripped from the tag to obtain RELEASE_VERSION (e.g.
+          "graph-" turns graph-2026-08-09 into 2026-08-09).
+        type: string
+        required: false
+        default: ""
+      version-pattern:
+        description: >-
+          POSIX extended regular expression (grep -E) the stripped
+          version must match. Empty (the default) skips the check.
+        type: string
+        required: false
+        default: ""
+      install-command:
+        description: >-
+          Shell command installing the build/validation tooling (e.g.
+          'pip install ".[validate]"'). Empty skips the step.
+        type: string
+        required: false
+        default: ""
+      prepare-command:
+        description: >-
+          Shell command run after the install and before the build, for
+          inputs that must not be committed (e.g. fetching a licensed
+          source text). Empty skips the step.
+        type: string
+        required: false
+        default: ""
+      build-command:
+        description: >-
+          Shell command producing the release artifacts. Required.
+        type: string
+        required: true
+      unpack-glob:
+        description: >-
+          Glob selecting the gzip tar archive to unpack into BUNDLE_DIR
+          before the verification hooks. Must match exactly one file.
+          Empty (the default) skips unpacking.
+        type: string
+        required: false
+        default: ""
+      unpack-dir:
+        description: "Directory the archive is unpacked into (BUNDLE_DIR)."
+        type: string
+        required: false
+        default: "/tmp/bundle"
+      unpack-strip-components:
+        description: "tar --strip-components value applied while unpacking."
+        type: number
+        required: false
+        default: 1
+      stage-command:
+        description: >-
+          Shell command run after unpacking, to stage extra inputs into
+          BUNDLE_DIR or echo the manifest. Empty skips the step.
+        type: string
+        required: false
+        default: ""
+      smoke-command:
+        description: >-
+          Shell command exercising the unpacked artifact the way a
+          consumer would. Empty skips the step.
+        type: string
+        required: false
+        default: ""
+      validate-command:
+        description: >-
+          Shell command validating the unpacked artifact standalone (the
+          check that catches a bundle missing a file it imports). Empty
+          skips the step.
+        type: string
+        required: false
+        default: ""
+      release-assets:
+        description: >-
+          Space-separated globs of files attached to the release. Must
+          match at least one existing file.
+        type: string
+        required: false
+        default: "dist/*"
+      release-name:
+        description: >-
+          Release title prefix; the rendered title is
+          "<release-name> <RELEASE_VERSION>". Empty (the default) leaves
+          the title to gh, which uses the tag.
+        type: string
+        required: false
+        default: ""
+      generate-notes:
+        description: "Pass --generate-notes to gh release create."
+        type: boolean
+        required: false
+        default: true
+      draft:
+        description: "Create the release as a draft."
+        type: boolean
+        required: false
+        default: false
+      prerelease:
+        description: "Mark the release as a prerelease."
+        type: boolean
+        required: false
+        default: false
+
+# The release step needs write access to create the release. Callers
+# must grant contents: write on the calling job as well.
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build, validate, and publish the bundle
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      # Publishes RELEASE_TAG, RELEASE_VERSION and BUNDLE_DIR to the job
+      # environment; every later step and every command hook reads them
+      # from there rather than through an ${{ }} interpolation.
+      - name: Check the tag and export the release environment
+        env:
+          TAG_PREFIX: ${{ inputs.tag-prefix }}
+          VERSION_PATTERN: ${{ inputs.version-pattern }}
+          UNPACK_DIR: ${{ inputs.unpack-dir }}
+          REF_TYPE: ${{ github.ref_type }}
+        run: |
+          set -euo pipefail
+          if [ "$REF_TYPE" != "tag" ]; then
+            echo "::error::this workflow must be called from a tag push (ref_type=${REF_TYPE})"
+            exit 1
+          fi
+          version="${GITHUB_REF_NAME#"$TAG_PREFIX"}"
+          if [ -n "$VERSION_PATTERN" ] && ! printf '%s' "$version" | grep -Eq "$VERSION_PATTERN"; then
+            echo "::error::tag ${GITHUB_REF_NAME} must be ${TAG_PREFIX}<${VERSION_PATTERN}>"
+            exit 1
+          fi
+          {
+            echo "RELEASE_TAG=${GITHUB_REF_NAME}"
+            echo "RELEASE_VERSION=${version}"
+            echo "BUNDLE_DIR=${UNPACK_DIR}"
+          } >> "$GITHUB_ENV"
+
+      - name: Install tooling
+        if: ${{ inputs.install-command != '' }}
+        env:
+          INSTALL_COMMAND: ${{ inputs.install-command }}
+        run: |
+          set -euo pipefail
+          bash -c "$INSTALL_COMMAND"
+
+      - name: Run prepare command
+        if: ${{ inputs.prepare-command != '' }}
+        env:
+          PREPARE_COMMAND: ${{ inputs.prepare-command }}
+        run: |
+          set -euo pipefail
+          bash -c "$PREPARE_COMMAND"
+
+      - name: Build the release artifacts
+        env:
+          BUILD_COMMAND: ${{ inputs.build-command }}
+        run: |
+          set -euo pipefail
+          bash -c "$BUILD_COMMAND"
+
+      - name: Unpack the archive
+        if: ${{ inputs.unpack-glob != '' }}
+        env:
+          UNPACK_GLOB: ${{ inputs.unpack-glob }}
+          STRIP_COMPONENTS: ${{ inputs.unpack-strip-components }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$BUNDLE_DIR"
+          # Unquoted on purpose: the value is a glob that must expand.
+          # shellcheck disable=SC2086
+          set -- $UNPACK_GLOB
+          if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then
+            echo "::error::unpack-glob '${UNPACK_GLOB}' must match exactly one existing archive"
+            exit 1
+          fi
+          tar xzf "$1" -C "$BUNDLE_DIR" --strip-components="$STRIP_COMPONENTS"
+
+      - name: Run stage command
+        if: ${{ inputs.stage-command != '' }}
+        env:
+          STAGE_COMMAND: ${{ inputs.stage-command }}
+        run: |
+          set -euo pipefail
+          bash -c "$STAGE_COMMAND"
+
+      - name: Run smoke command
+        if: ${{ inputs.smoke-command != '' }}
+        env:
+          SMOKE_COMMAND: ${{ inputs.smoke-command }}
+        run: |
+          set -euo pipefail
+          bash -c "$SMOKE_COMMAND"
+
+      - name: Run validate command
+        if: ${{ inputs.validate-command != '' }}
+        env:
+          VALIDATE_COMMAND: ${{ inputs.validate-command }}
+        run: |
+          set -euo pipefail
+          bash -c "$VALIDATE_COMMAND"
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ASSETS: ${{ inputs.release-assets }}
+          RELEASE_NAME: ${{ inputs.release-name }}
+          GENERATE_NOTES: ${{ inputs.generate-notes }}
+          DRAFT: ${{ inputs.draft }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          set -euo pipefail
+          # Unquoted on purpose: the value is a space-separated glob list.
+          # shellcheck disable=SC2086
+          set -- $RELEASE_ASSETS
+          if [ "$#" -eq 0 ] || [ ! -e "$1" ]; then
+            echo "::error::release-assets '${RELEASE_ASSETS}' matched no existing file"
+            exit 1
+          fi
+          flags=()
+          if [ -n "$RELEASE_NAME" ]; then
+            flags+=(--title "${RELEASE_NAME} ${RELEASE_VERSION}")
+          fi
+          if [ "$GENERATE_NOTES" = "true" ]; then
+            flags+=(--generate-notes)
+          fi
+          if [ "$DRAFT" = "true" ]; then
+            flags+=(--draft)
+          fi
+          if [ "$PRERELEASE" = "true" ]; then
+            flags+=(--prerelease)
+          fi
+          # ${flags[@]+...} keeps an empty array from tripping `set -u`
+          # (every flag input can be turned off at once).
+          gh release create "$RELEASE_TAG" "$@" ${flags[@]+"${flags[@]}"}

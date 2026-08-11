@@ -7,9 +7,9 @@ Central, reusable GitHub Actions workflows for this account.
 
 > **Note:** Reusable workflows must live flat in `.github/workflows/` (GitHub
 > does not support subdirectories for them), so files are grouped by filename
-> prefix (`jekyll-*`, `latex-*`, `python-*`, `rdf-*`, `misc-*`). The shared
-> Jekyll, TeX Live, Python and RDF build/check steps are provided as composite
-> actions from [`stklug84/actions`](https://github.com/stklug84/actions).
+> prefix (`jekyll-*`, `latex-*`, `python-*`, `rdf-*`, `repo-*`, `misc-*`). The
+> shared Jekyll, TeX Live, Python and RDF build/check steps are provided as
+> composite actions from [`stklug84/actions`](https://github.com/stklug84/actions).
 
 ## `jekyll-deploy-pages.yml` — build & deploy a Jekyll site to GitHub Pages
 
@@ -440,6 +440,12 @@ When the regenerated files differ from the checked-out state, the workflow
 commits them to a branch and opens (or force-updates) a pull request —
 or uploads them as a workflow artifact with `create-pr: false`.
 
+> **Precondition:** the generator's **source inventory must be committed**.
+> Every stage reads it, so a repository that keeps its inventory untracked
+> (a private export, a gitignored dump) cannot use this workflow — the
+> generator exits before the first stage and there is no runner-side
+> substitute. Check the inventory in, or regenerate locally.
+
 Pull requests are created with the workflow token by default; pass the
 `token` secret (PAT or GitHub App token) when downstream workflows must
 trigger on the created pull request — events raised with the built-in
@@ -466,11 +472,14 @@ concurrency:
 
 jobs:
   generate:
-    uses: stklug84/github-workflows/.github/workflows/rdf-generate.yml@v1.20.0
+    uses: stklug84/github-workflows/.github/workflows/rdf-generate.yml@v2.0.0
     permissions:
       contents: write
       pull-requests: write
     with:
+      generator: "scripts/generate_individuals.py"
+      cache-hash-files: "inventory.csv"
+      commit-paths: "sets aggregate.ttl"
       prepare-command: "python3 scripts/build_vocab.py"
       finalize-command: "python3 scripts/update_imports.py"
 ```
@@ -480,18 +489,18 @@ jobs:
 | Input              | Default                                              | Description                                                    |
 |--------------------|------------------------------------------------------|----------------------------------------------------------------|
 | `runs-on`          | `ubuntu-latest`                                      | Runner label for all jobs.                                     |
-| `generator`        | `scripts/generate_individuals.py`                    | Generator script, run as `python3 <generator> <stage>`.        |
+| `generator`        | *(required)*                                         | Generator script, run as `python3 <generator> <stage>`.        |
 | `prepare-command`  | `""`                                                 | Shell command before `fetch`; empty skips.                     |
 | `finalize-command` | `""`                                                 | Shell command after `collection`; empty skips.                 |
 | `python-version`   | `3.12`                                               | Python version for `actions/setup-python`.                     |
 | `rdflib-version`   | `>=7,<8`                                             | PEP 440 specifier for rdflib; empty skips the install.         |
-| `cache-dir`        | `/tmp/scryfall_cache`                                | API response cache directory (saved/restored).                 |
-| `cache-key`        | `scryfall-cache`                                     | Cache key prefix.                                              |
-| `cache-hash-files` | `collection.csv`                                     | `hashFiles` pattern(s) mixed into the cache key.               |
+| `cache-dir`        | `/tmp/rdf-generate-cache`                            | API response cache directory (saved/restored).                 |
+| `cache-key`        | `rdf-generate-cache`                                 | Cache key prefix.                                              |
+| `cache-hash-files` | *(required)*                                         | `hashFiles` pattern(s) mixed into the cache key — the committed inventory. |
 | `run-fetch`        | `true`                                               | Toggle the fetch stage (string, forwarded to the action).      |
 | `run-generate`     | `true`                                               | Toggle the generate stage (string, forwarded to the action).   |
 | `run-collection`   | `true`                                               | Toggle the collection stage (string, forwarded to the action). |
-| `commit-paths`     | `sets MagicCardCollection.ttl MagicCardIndividuals.ttl` | Paths committed to the PR / packed into the artifact.       |
+| `commit-paths`     | *(required)*                                         | Paths committed to the PR / packed into the artifact.          |
 | `pr-branch`        | `chore/regenerate-graph`                             | Head branch for the regeneration pull request.                 |
 | `pr-title`         | `chore(graph): regenerate instance graphs from inventory` | Pull request title.                                       |
 | `commit-message`   | `chore(graph): regenerate instance graphs from inventory` | Commit message.                                           |
@@ -501,6 +510,139 @@ jobs:
 | Secret  | Required | Description                                                                  |
 |---------|----------|------------------------------------------------------------------------------|
 | `token` | no       | Push/PR token; falls back to the workflow token (which does not trigger CI). |
+
+## `rdf-release-bundle.yml` — publish a validated bundle as a GitHub Release
+
+Publishes a graph (or any other build artifact) as a versioned GitHub Release
+on a tag push, **after** the artifact has been validated. The workflow owns the
+sequence and the guardrails — tag-format check, Python setup, install, build,
+unpack, staged verification, release — while every repository-specific step
+arrives as a shell command input:
+
+```text
+check tag → setup python → install → prepare-command → build-command
+  → unpack → stage-command → smoke-command → validate-command
+  → gh release create
+```
+
+Each hook runs as its own named step, so a failure points at the stage that
+produced it. Every command runs through `bash -c` with `RELEASE_TAG` (the full
+tag), `RELEASE_VERSION` (the tag with `tag-prefix` stripped) and `BUNDLE_DIR`
+(the unpack directory) exported.
+
+The caller owns the trigger — a reusable workflow cannot declare one — and must
+grant `contents: write`, since called workflows do not inherit the caller's
+permissions.
+
+### Usage
+
+```yaml
+name: Release graph bundle
+
+on:
+  push:
+    tags: ["graph-*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    uses: stklug84/github-workflows/.github/workflows/rdf-release-bundle.yml@v2.0.0
+    permissions:
+      contents: write
+    with:
+      tag-prefix: "graph-"
+      version-pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+      install-command: 'pip install ".[validate]"'
+      build-command: 'python3 scripts/build_graph_bundle.py --graph-version "$GRAPH_VERSION"'
+      unpack-glob: "dist/*.tar.gz"
+      validate-command: 'mtg-validate --check ttl --check consistency "$BUNDLE_DIR"'
+      release-name: "Knowledge graph"
+```
+
+### Inputs
+
+| Input                     | Default         | Description                                                       |
+|---------------------------|-----------------|-------------------------------------------------------------------|
+| `runs-on`                 | `ubuntu-latest` | Runner label for the job.                                         |
+| `python-version`          | `3.12`          | Python version for `actions/setup-python`.                        |
+| `tag-prefix`              | `""`            | Prefix stripped from the tag to obtain `RELEASE_VERSION`.         |
+| `version-pattern`         | `""`            | `grep -E` pattern the stripped version must match. Empty → no check. |
+| `install-command`         | `""`            | Installs the build/validation tooling. Empty skips the step.      |
+| `prepare-command`         | `""`            | Runs after install, before build (uncommittable inputs). Empty skips. |
+| `build-command`           | *(required)*    | Produces the release artifacts.                                   |
+| `unpack-glob`             | `""`            | Glob for the gzip tar archive to unpack; must match exactly one file. Empty skips unpacking. |
+| `unpack-dir`              | `/tmp/bundle`   | Directory the archive is unpacked into (`BUNDLE_DIR`).            |
+| `unpack-strip-components` | `1`             | `tar --strip-components` value.                                   |
+| `stage-command`           | `""`            | Runs after unpacking (stage extra inputs, echo the manifest). Empty skips. |
+| `smoke-command`           | `""`            | Exercises the unpacked artifact the way a consumer would. Empty skips. |
+| `validate-command`        | `""`            | Validates the unpacked artifact standalone. Empty skips.          |
+| `release-assets`          | `dist/*`        | Space-separated globs attached to the release; must match ≥ 1 file. |
+| `release-name`            | `""`            | Title prefix; rendered as `<release-name> <RELEASE_VERSION>`. Empty → gh uses the tag. |
+| `generate-notes`          | `true`          | Pass `--generate-notes`.                                          |
+| `draft`                   | `false`         | Create the release as a draft.                                    |
+| `prerelease`              | `false`         | Mark the release as a prerelease.                                 |
+
+## `repo-lint.yml` — repository hygiene linting
+
+The lint trio every repository of this account runs — **actionlint** (workflow
+syntax, including shellcheck over `run:` blocks), **yamllint** and
+**markdownlint** — plus an optional **hadolint** job for repositories that ship
+a Dockerfile. The linters read the calling repository's own configuration
+(`.yamllint.yml`, `.markdownlint.yml`, `.shellcheckrc`); this workflow supplies
+the runners and the pinned tool versions.
+
+Each job reports its real pass/fail status (no `continue-on-error`) and can be
+toggled off via the `run-*` inputs. The `hadolint` job additionally requires a
+non-empty `hadolint-dockerfile` and is skipped otherwise, so repositories
+without a Dockerfile work with the defaults. Repository-specific linting (a
+shellcheck sweep over standalone scripts, schema validation, …) stays in the
+caller as extra jobs alongside the `uses:` job.
+
+### Usage
+
+```yaml
+name: Lint
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    uses: stklug84/github-workflows/.github/workflows/repo-lint.yml@v2.0.0
+    with:
+      hadolint-dockerfile: ".github/docker/texlive/Dockerfile"
+      markdownlint-globs: |
+        **/*.md
+        !node_modules
+```
+
+### Inputs
+
+| Input                 | Default             | Description                                                   |
+|-----------------------|---------------------|---------------------------------------------------------------|
+| `runs-on`             | `ubuntu-latest`     | Runner label for all jobs.                                    |
+| `actionlint-version`  | `1.7.10`            | actionlint release to download.                               |
+| `yamllint-version`    | `""`                | PEP 440 specifier appended to `pip install yamllint` (e.g. `==1.35.1`). Empty → latest. |
+| `yamllint-paths`      | `.`                 | Space-separated paths passed to yamllint.                     |
+| `yamllint-strict`     | `true`              | Run with `--strict` (warnings, line-length among them, fail). |
+| `markdownlint-config` | `.markdownlint.yml` | markdownlint-cli2 configuration file.                         |
+| `markdownlint-globs`  | `**/*.md`           | Newline-separated globs; exclusions are negation globs (`!.venv`). |
+| `hadolint-dockerfile` | `""`                | Dockerfile to lint. Empty → hadolint job skipped.             |
+| `run-actionlint`      | `true`              | Toggle the actionlint job.                                    |
+| `run-yamllint`        | `true`              | Toggle the yamllint job.                                      |
+| `run-markdownlint`    | `true`              | Toggle the markdownlint job.                                  |
+| `run-hadolint`        | `true`              | Toggle the hadolint job (also requires `hadolint-dockerfile`). |
 
 ## Pattern A: prebuild artifact handoff
 
