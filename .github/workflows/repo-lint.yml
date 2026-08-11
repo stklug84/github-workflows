@@ -14,7 +14,7 @@
 #
 #     jobs:
 #       lint:
-#         uses: stklug84/github-workflows/.github/workflows/repo-lint.yml@v2.0.0
+#         uses: stklug84/github-workflows/.github/workflows/repo-lint.yml@v3.0.0
 #         with:
 #           hadolint-dockerfile: ".github/docker/texlive/Dockerfile"
 #

@@ -23,8 +23,9 @@ prefix:
 .github/workflows/jekyll-*.yml   # Jekyll build/deploy/validate
 .github/workflows/latex-*.yml    # LaTeX document builds
 .github/workflows/python-*.yml   # Python static analysis
-.github/workflows/rdf-*.yml      # RDF validation, generation and release
-.github/workflows/repo-*.yml     # repository hygiene (lint, ...)
+.github/workflows/rdf-*.yml      # RDF validation and generation
+.github/workflows/release-*.yml  # tag-triggered artifact publishing
+.github/workflows/repo-*.yml     # repository hygiene (lint, CodeQL, ...)
 .github/workflows/misc-*.yml     # everything else
 .github/workflows/lint.yml       # repository CI (not reusable)
 .github/workflows/codeql.yml     # repository CI (not reusable)
