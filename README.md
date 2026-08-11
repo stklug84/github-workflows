@@ -528,9 +528,15 @@ check tag → setup python → install → prepare-command → build-command
 ```
 
 Each hook runs as its own named step, so a failure points at the stage that
-produced it. Every command runs through `bash -c` with `RELEASE_TAG` (the full
-tag), `RELEASE_VERSION` (the tag with `tag-prefix` stripped) and `BUNDLE_DIR`
-(the unpack directory) exported.
+produced it. Every command runs through `bash -euo pipefail -c` with
+`RELEASE_TAG` (the full tag), `RELEASE_VERSION` (the tag with `tag-prefix`
+stripped) and `BUNDLE_DIR` (the unpack directory) exported.
+
+> The explicit `-euo pipefail` matters: `bash -c` starts a fresh shell that
+> does **not** inherit the step's own `set -euo pipefail`. Without it, a
+> multi-line hook whose *last* line succeeds reports success even after an
+> earlier line failed — which would let this workflow publish an artifact its
+> own smoke test had rejected.
 
 The caller owns the trigger — a reusable workflow cannot declare one — and must
 grant `contents: write`, since called workflows do not inherit the caller's
