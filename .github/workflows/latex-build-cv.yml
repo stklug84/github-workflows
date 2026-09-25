@@ -246,7 +246,7 @@ jobs:
         # the optional per-style overrides.<style> meta/contact block, and
         # deep-merges a gitignored sibling <source>.local.yml overlay (for
         # local-only PII fields) when present.
-        uses: stklug84/actions/cv/generate@b306482db7348b1f07e87fe9088af06a0afd2e1b  # v2.19.0-dev
+        uses: stklug84/actions/cv/generate@acdac12cd0e7ce5261b61a9f1a3c33226815dc0e  # v2.19.0-dev
         with:
           manifest: ${{ inputs.generate-manifest }}
           templates-dir: ${{ inputs.generate-templates-dir }}
@@ -370,7 +370,7 @@ jobs:
         # Pinned to actions v2.15.0: scan.sh recurses to any depth (for the
         # nested cvs/<yaml>-<lang>/<style>/ layout) and emits an empty
         # matrix instead of failing when there are no variants to build.
-        uses: stklug84/actions/texlive/discover-variants@b306482db7348b1f07e87fe9088af06a0afd2e1b  # v2.19.0-dev
+        uses: stklug84/actions/texlive/discover-variants@acdac12cd0e7ce5261b61a9f1a3c33226815dc0e  # v2.19.0-dev
         with:
           root: ${{ inputs.root }}
           default-engine: ${{ inputs.default-engine }}
@@ -447,7 +447,7 @@ jobs:
           path: ${{ inputs.prebuild-into }}
 
       - name: Build ${{ matrix.name }} (${{ matrix.engine }})
-        uses: stklug84/actions/texlive/build-pdf@b306482db7348b1f07e87fe9088af06a0afd2e1b  # v2.19.0-dev
+        uses: stklug84/actions/texlive/build-pdf@acdac12cd0e7ce5261b61a9f1a3c33226815dc0e  # v2.19.0-dev
         with:
           working-directory: ${{ matrix.dir }}
           main: ${{ matrix.main }}
@@ -471,7 +471,7 @@ jobs:
 
       - name: Upload build logs on failure
         if: failure() && needs.discover.outputs.local != 'true'
-        uses: stklug84/actions/texlive/upload-build-logs@b306482db7348b1f07e87fe9088af06a0afd2e1b  # v2.19.0-dev
+        uses: stklug84/actions/texlive/upload-build-logs@acdac12cd0e7ce5261b61a9f1a3c33226815dc0e  # v2.19.0-dev
         with:
           artifact-name: ${{ env.ARTIFACT_PREFIX }}-${{ matrix.name }}-logs
           paths: |
@@ -640,7 +640,7 @@ jobs:
       # release of a re-run (--clobber) and prunes fail-safely: nothing is
       # deleted unless both the release and the tag inventory succeeded.
       - name: Create versioned release and prune
-        uses: stklug84/actions/release/publish-dated@b306482db7348b1f07e87fe9088af06a0afd2e1b  # v2.19.0-dev
+        uses: stklug84/actions/release/publish-dated@acdac12cd0e7ce5261b61a9f1a3c33226815dc0e  # v2.19.0-dev
         with:
           files: "assets/*.pdf"
           title-prefix: "CVs"
