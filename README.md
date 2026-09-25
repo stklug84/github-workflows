@@ -8,8 +8,8 @@ Central, reusable GitHub Actions workflows for this account.
 > **Note:** Reusable workflows must live flat in `.github/workflows/` (GitHub
 > does not support subdirectories for them), so files are grouped by filename
 > prefix (`jekyll-*`, `latex-*`, `python-*`, `rdf-*`, `release-*`, `repo-*`,
-> `misc-*`). The shared Jekyll, TeX Live, Python and RDF build/check steps are
-> provided as composite actions from
+> `revealjs-*`, `misc-*`). The shared Jekyll, TeX Live, Python, RDF and
+> reveal.js build/check steps are provided as composite actions from
 > [`stklug84/actions`](https://github.com/stklug84/actions).
 
 ## `jekyll-deploy-pages.yml` — build & deploy a Jekyll site to GitHub Pages
@@ -228,7 +228,8 @@ the caller's digest-pinned TeX Live container, and combines all PDFs into a
 single artifact named after the calling repo. No filenames are hardcoded.
 Optionally (`release: "true"`) publishes the PDFs as a versioned GitHub
 release (tag `v<YYYY.MM.DD>-r<run-number>`) on push events, pruned to the
-`release-keep` newest releases.
+`release-keep` newest releases (via `stklug84/actions/release/publish-dated`:
+re-runs reuse their release, pruning is fail-safe).
 
 ### Usage
 
@@ -321,6 +322,102 @@ jobs:
 | `epubcheck-filter-file` | `""`                   | Optional epubcheck findings filter.                   |
 | `artifact-name`         | `""`                   | Combined artifact name (empty → repo name).           |
 | `runs-on`               | `ubuntu-latest`        | Runner label for all jobs.                            |
+
+## `revealjs-build-slides.yml` — Markdown slide decks → reveal.js HTML + PDF
+
+Discovers every Markdown slide deck under `root` (default
+`decks/**/slides.md`, via `stklug84/actions/revealjs/discover-decks`),
+matrix-builds each one into a **self-contained reveal.js HTML deck**
+(`revealjs/build-html`: pandoc with an explicit slide level, build-time
+Mermaid SVGs, vendored KaTeX) and a **PDF** (`revealjs/build-pdf`: DeckTape),
+combines all decks into one artifact named after the calling repo and
+optionally (`release: "true"`) publishes the PDFs as a versioned GitHub
+release (`v<YYYY.MM.DD>-r<run-number>`, via `release/publish-dated`) on push
+events, pruned to `release-keep`. On pull requests the release job runs in
+**dry-run** mode, so every PR exercises the release path without side
+effects.
+
+One Markdown file per deck; its YAML front matter picks the theme
+(`<themes-dir>/<name>/` or a built-in reveal.js theme) and the parameters,
+the headings define the slides (`#` section divider, `##` slide, `###`
+in-slide heading, `::: notes`, `:::: columns`, `::: incremental`, …). The
+authoring contract is documented with the
+[`revealjs/build-html` action](https://github.com/stklug84/actions#revealjsbuild-html).
+
+### Usage
+
+```yaml
+name: Build Slides
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      local:
+        description: "Set to 'true' when running locally via gh act"
+        required: false
+        default: "false"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # contents: write is consumed only by the release job.
+    permissions:
+      contents: write
+    uses: stklug84/github-workflows/.github/workflows/revealjs-build-slides.yml@v4.1.0
+    with:
+      local: ${{ inputs.local }}
+      release: "true"
+      release-keep: "10"
+```
+
+### Requirements in the consuming repo
+
+A pin-only, multi-stage Dockerfile (default `.github/docker/revealjs/Dockerfile`)
+whose named stages pin the toolchain images by digest — never built, only
+read (`revealjs/resolve-images`); Dependabot's docker ecosystem keeps the
+digests current and hadolint lints a single file:
+
+```dockerfile
+FROM pandoc/core:3.11.0.0-alpine@sha256:…          AS pandoc
+FROM minlag/mermaid-cli:11.17.0@sha256:…           AS mermaid
+FROM ghcr.io/astefanutti/decktape:3.16.1@sha256:…  AS decktape
+```
+
+### Inputs
+
+| Input                 | Default                               | Description                                                   |
+|-----------------------|---------------------------------------|---------------------------------------------------------------|
+| `root`                | `decks`                               | Directory scanned recursively for decks.                      |
+| `main`                | `slides.md`                           | File name that marks a deck directory.                        |
+| `themes-dir`          | `themes`                              | Caller's themes (`<themes-dir>/<name>/theme.yml`).            |
+| `out-dir`             | `dist`                                | Output directory for `<deck>.html` / `<deck>.pdf`.            |
+| `revealjs-dockerfile` | `.github/docker/revealjs/Dockerfile`  | Pin-only Dockerfile with the `pandoc`/`mermaid`/`decktape` stages. |
+| `run-pdf`             | `true`                                | Export every deck to PDF.                                     |
+| `upload-html`         | `true`                                | Include the HTML deck in the artifacts.                       |
+| `local`               | `false`                               | gh-act local mode (skips upload/package/release).             |
+| `runs-on`             | `ubuntu-latest`                       | Runner label for all jobs.                                    |
+| `artifact-name`       | `""`                                  | Artifact prefix / combined artifact name (empty → repo name). |
+| `retention-days`      | `0`                                   | Artifact retention (`0` → repository default).                |
+| `release`             | `false`                               | Publish a versioned release on push (dry-run otherwise).      |
+| `release-keep`        | `0`                                   | Keep only the N newest releases (`0` = keep all).             |
+| `release-html`        | `false`                               | Also attach the HTML decks to the release.                    |
+
+Artifacts: `<repo>-deck-<name>` per deck, `<repo>` combined, and
+`<repo>-logs-<name>` on failure (pandoc/mermaid logs, generated defaults).
+With `release: "true"` the caller must grant `contents: write` on the
+calling job. Local reproduction: `gh act workflow_dispatch --input local=true
+--bind -P ubuntu-latest=catthehacker/ubuntu:act-latest` (`--bind` so the
+tool containers started via `docker run` see the same workspace).
 
 ## `python-validate.yml` — strict Python static analysis
 

@@ -1,0 +1,376 @@
+---
+# title: Build reveal.js Slides workflow
+# authors:
+#   - Steffen Klug <45033201+stklug84@users.noreply.github.com>
+# date: 2026-09-25
+# keywords: [reusable-workflow, revealjs, slides]
+# comment: |
+#   Reusable workflow: build every Markdown slide deck discovered under
+#   `root` (default decks/**/slides.md) into a self-contained reveal.js
+#   HTML deck plus a PDF, combine all decks into one artifact named after
+#   the calling repository and, optionally, publish the PDFs as a
+#   versioned GitHub release (tag v<YYYY.MM.DD>-r<run-number>) on push
+#   events, pruned to the `release-keep` newest releases.
+#
+#   Consume from another repository:
+#
+#     jobs:
+#       build:
+#         # contents: write is only needed with release: 'true'.
+#         permissions:
+#           contents: write
+#         uses: stklug84/github-workflows/.github/workflows/revealjs-build-slides.yml@v4.1.0
+#         with:
+#           release: "true"
+#           release-keep: "10"
+#
+#   One Markdown file per deck; its YAML front matter picks the theme
+#   (<themes-dir>/<name>/ or a built-in reveal.js theme) and the deck
+#   parameters, the slide structure comes from the headings (see the
+#   README of stklug84/actions revealjs/build-html for the authoring
+#   contract). The toolchain -- pandoc, mermaid-cli, DeckTape -- runs
+#   from digest-pinned images declared in the CALLER's pin-only
+#   multi-stage Dockerfile (see `revealjs-dockerfile`), so the caller's
+#   Dependabot (docker ecosystem) keeps the digests current. All build
+#   behaviour lives in the stklug84/actions/revealjs/* composite actions
+#   and release/publish-dated; this workflow only wires them together.
+#
+#   The release job runs on every event: on pushes it publishes, on any
+#   other event (pull requests, dispatch) it runs the SAME steps in
+#   dry-run mode and prints what it would create and prune, so the
+#   release path is exercised by every pull request without touching a
+#   release. The caller SHOULD set a concurrency group and needs
+#   `contents: read`, or `contents: write` when releases are enabled.
+#
+#   Local mode (gh act): pass `local: 'true'` (auto-detected via the ACT
+#   environment variable) to skip every upload/package/release step; the
+#   HTML and PDF land in `out-dir` through the bind mount. Run act with
+#   `--bind` so the tool containers started via `docker run` see the same
+#   workspace as the job container.
+# ---
+name: Build reveal.js Slides
+
+on:
+  workflow_call:
+    inputs:
+      root:
+        description: "Directory scanned recursively for decks."
+        type: string
+        required: false
+        default: "decks"
+      main:
+        description: "File name that marks a deck directory."
+        type: string
+        required: false
+        default: "slides.md"
+      themes-dir:
+        description: "Directory holding the caller's themes (<themes-dir>/<name>/theme.yml)."
+        type: string
+        required: false
+        default: "themes"
+      out-dir:
+        description: "Directory the HTML and PDF decks are written into."
+        type: string
+        required: false
+        default: "dist"
+      revealjs-dockerfile:
+        description: >-
+          Path (in the calling repo) to the pin-only multi-stage Dockerfile
+          whose `FROM ... AS pandoc|mermaid|decktape` lines pin the toolchain
+          images by digest.
+        type: string
+        required: false
+        default: ".github/docker/revealjs/Dockerfile"
+      run-pdf:
+        description: "Export every deck to PDF with DeckTape."
+        type: boolean
+        required: false
+        default: true
+      upload-html:
+        description: "Include the self-contained HTML deck in the artifacts."
+        type: boolean
+        required: false
+        default: true
+      local:
+        description: >-
+          Set to 'true' when running locally via gh act (skips artifact
+          upload, packaging and release). Auto-detected when the ACT
+          environment variable is set.
+        type: string
+        required: false
+        default: "false"
+      runs-on:
+        description: "Runner label for all jobs."
+        type: string
+        required: false
+        default: "ubuntu-latest"
+      artifact-name:
+        description: >-
+          Prefix of every artifact name and the name of the combined
+          artifact. Empty → the calling repository name.
+        type: string
+        required: false
+        default: ""
+      retention-days:
+        description: >-
+          Artifact retention in days. '0' → the repository default.
+        type: string
+        required: false
+        default: "0"
+      release:
+        description: >-
+          Set to 'true' to publish the PDFs as a versioned GitHub release
+          (tag v<YYYY.MM.DD>-r<run-number>) when the workflow runs on a
+          push event; every other event runs the release job in dry-run
+          mode. Requires the caller to grant `contents: write`.
+        type: string
+        required: false
+        default: "false"
+      release-keep:
+        description: >-
+          Retention cap for releases created by this workflow: keep only
+          the N newest and delete older ones including their tags. '0'
+          disables pruning.
+        type: string
+        required: false
+        default: "0"
+      release-html:
+        description: "Also attach the self-contained HTML decks to the release."
+        type: boolean
+        required: false
+        default: false
+
+# Least-privilege token: this workflow only reads the repo and uploads
+# artifacts. The release job elevates to contents: write itself.
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # Dynamic artifact-name prefix, derived from the calling repository name
+  # unless the caller overrides it, so the workflow is fully portable.
+  ARTIFACT_PREFIX: >-
+    ${{ inputs.artifact-name != '' && inputs.artifact-name
+        || github.event.repository.name }}
+
+jobs:
+  # =====================================================================
+  #  discover
+  #
+  #  Resolves local mode and the three toolchain images from the caller's
+  #  pin-only Dockerfile, then emits the deck matrix. All downstream jobs
+  #  consume the results as `needs.discover.outputs.*`.
+  # =====================================================================
+  discover:
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 2
+    outputs:
+      matrix: ${{ steps.scan.outputs.matrix }}
+      count: ${{ steps.scan.outputs.count }}
+      local: ${{ steps.cfg.outputs.local }}
+      pandoc-image: ${{ steps.images.outputs.pandoc-image }}
+      mermaid-image: ${{ steps.images.outputs.mermaid-image }}
+      decktape-image: ${{ steps.images.outputs.decktape-image }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Resolve local mode
+        id: cfg
+        shell: bash
+        env:
+          LOCAL_IN: ${{ inputs.local }}
+        run: |
+          set -euo pipefail
+          # nektos/act exports ACT=true; treat that as implicit local mode.
+          LOCAL="${LOCAL_IN:-${ACT:+true}}"
+          LOCAL="${LOCAL:-false}"
+          echo "local=$LOCAL" >> "$GITHUB_OUTPUT"
+          echo "Resolved local=$LOCAL (ACT=${ACT:-unset})"
+
+      # Single source of truth for the toolchain images: the caller's
+      # Dockerfile exists so Dependabot (docker ecosystem) can keep the
+      # digest pins current; we only consume its FROM references.
+      - name: Resolve toolchain images
+        id: images
+        uses: stklug84/actions/revealjs/resolve-images@b306482db7348b1f07e87fe9088af06a0afd2e1b  # v2.19.0-dev
+        with:
+          dockerfile: ${{ inputs.revealjs-dockerfile }}
+
+      - name: Discover decks
+        id: scan
+        uses: stklug84/actions/revealjs/discover-decks@b306482db7348b1f07e87fe9088af06a0afd2e1b  # v2.19.0-dev
+        with:
+          root: ${{ inputs.root }}
+          main: ${{ inputs.main }}
+
+  # =====================================================================
+  #  build
+  #
+  #  Matrix build, one leg per discovered deck. The matrix entry is pure
+  #  data (name, dir, source); all build behaviour lives in the central
+  #  revealjs/build-html and revealjs/build-pdf composite actions. Each
+  #  leg uploads <prefix>-deck-<name> with <name>.html and <name>.pdf.
+  # =====================================================================
+  build:
+    needs: discover
+    if: needs.discover.outputs.count != '0'
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          # In local mode (gh act --bind) the workspace is the host checkout;
+          # keep previously built outputs (e.g. cached Mermaid SVGs) instead
+          # of git-cleaning them away.
+          clean: ${{ needs.discover.outputs.local != 'true' }}
+
+      - name: Build ${{ matrix.name }} (HTML)
+        id: html
+        uses: stklug84/actions/revealjs/build-html@b306482db7348b1f07e87fe9088af06a0afd2e1b  # v2.19.0-dev
+        with:
+          source: ${{ matrix.source }}
+          name: ${{ matrix.name }}
+          out-dir: ${{ inputs.out-dir }}
+          themes-dir: ${{ inputs.themes-dir }}
+          pandoc-image: ${{ needs.discover.outputs.pandoc-image }}
+          mermaid-image: ${{ needs.discover.outputs.mermaid-image }}
+
+      - name: Build ${{ matrix.name }} (PDF)
+        if: ${{ inputs.run-pdf }}
+        uses: stklug84/actions/revealjs/build-pdf@b306482db7348b1f07e87fe9088af06a0afd2e1b  # v2.19.0-dev
+        with:
+          html: ${{ steps.html.outputs.html }}
+          decktape-image: ${{ needs.discover.outputs.decktape-image }}
+          size: ${{ steps.html.outputs.pdf-size }}
+          fragments: ${{ steps.html.outputs.pdf-fragments }}
+          pause: ${{ steps.html.outputs.pdf-pause }}
+          load-pause: ${{ steps.html.outputs.pdf-load-pause }}
+          title: ${{ steps.html.outputs.title }}
+          author: ${{ steps.html.outputs.author }}
+          # With one page per fragment step the page count exceeds the
+          # slide count; only enforce equality in the default mode.
+          expected-pages: ${{ steps.html.outputs.pdf-fragments == 'true' && '0' || steps.html.outputs.slides }}
+
+      # Deck filenames are unique (<name>.html / <name>.pdf), so the
+      # package job can merge every per-deck artifact into one flat tree.
+      - name: Select artifact files
+        id: files
+        if: needs.discover.outputs.local != 'true'
+        shell: bash
+        env:
+          OUT_DIR: ${{ inputs.out-dir }}
+          NAME: ${{ matrix.name }}
+          RUN_PDF: ${{ inputs.run-pdf }}
+          UPLOAD_HTML: ${{ inputs.upload-html }}
+        run: |
+          set -euo pipefail
+          files=()
+          if [ "$RUN_PDF" = "true" ]; then files+=("$OUT_DIR/$NAME.pdf"); fi
+          if [ "$UPLOAD_HTML" = "true" ]; then files+=("$OUT_DIR/$NAME.html"); fi
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::Nothing to upload: both run-pdf and upload-html are disabled."
+            exit 1
+          fi
+          {
+            echo "paths<<EOF"
+            printf '%s\n' "${files[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload deck artifact
+        if: needs.discover.outputs.local != 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: ${{ env.ARTIFACT_PREFIX }}-deck-${{ matrix.name }}
+          path: ${{ steps.files.outputs.paths }}
+          retention-days: ${{ inputs.retention-days }}
+          if-no-files-found: error
+
+      # Per-deck diagnostics (pandoc, mermaid-cli logs and the generated
+      # pandoc defaults) so a failing render can be inspected offline.
+      - name: Upload build logs on failure
+        if: failure() && needs.discover.outputs.local != 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: ${{ env.ARTIFACT_PREFIX }}-logs-${{ matrix.name }}
+          path: |
+            build/${{ matrix.name }}/logs/
+            build/${{ matrix.name }}/*.yml
+            build/${{ matrix.name }}/*.json
+            build/${{ matrix.name }}/*.env
+          if-no-files-found: ignore
+
+  # =====================================================================
+  #  package
+  #
+  #  Merges every per-deck artifact (<prefix>-deck-*) into a single
+  #  combined artifact named after the repository. Deck filenames are
+  #  unique, so `merge-multiple` yields one flat directory.
+  # =====================================================================
+  package:
+    needs: [discover, build]
+    if: needs.discover.outputs.local != 'true'
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 5
+    steps:
+      - name: Download all deck artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          pattern: ${{ env.ARTIFACT_PREFIX }}-deck-*
+          merge-multiple: true
+          path: ./dist
+
+      - name: List combined artifact contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          find ./dist -type f -print | sort
+
+      - name: Upload combined artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: ${{ env.ARTIFACT_PREFIX }}
+          path: ./dist/*
+          retention-days: ${{ inputs.retention-days }}
+          if-no-files-found: error
+
+  # =====================================================================
+  #  release
+  #
+  #  Opt-in (release: 'true'). On push events publishes the PDFs (and,
+  #  with release-html, the HTML decks) as the release
+  #  v<YYYY.MM.DD>-r<run-number> via release/publish-dated and prunes to
+  #  release-keep; on every other event the same steps run in dry-run
+  #  mode so pull requests exercise the release path without side
+  #  effects. Re-runs reuse their -r<run-number> release; pruning is
+  #  fail-safe (nothing is deleted unless both inventories succeed).
+  # =====================================================================
+  release:
+    needs: [discover, package]
+    if: inputs.release == 'true' && needs.discover.outputs.local != 'true'
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 5
+    # contents: write publishes the release; the caller must grant it.
+    permissions:
+      contents: write
+    steps:
+      - name: Download all deck artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          pattern: ${{ env.ARTIFACT_PREFIX }}-deck-*
+          merge-multiple: true
+          path: ./dist
+
+      - name: Publish dated release
+        uses: stklug84/actions/release/publish-dated@b306482db7348b1f07e87fe9088af06a0afd2e1b  # v2.19.0-dev
+        with:
+          files: ${{ inputs.release-html && 'dist/*.pdf dist/*.html' || 'dist/*.pdf' }}
+          title-prefix: "Slides"
+          list-heading: "Decks:"
+          keep: ${{ inputs.release-keep }}
+          dry-run: ${{ github.event_name != 'push' }}

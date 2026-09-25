@@ -246,7 +246,7 @@ jobs:
         # the optional per-style overrides.<style> meta/contact block, and
         # deep-merges a gitignored sibling <source>.local.yml overlay (for
         # local-only PII fields) when present.
-        uses: stklug84/actions/cv/generate@f90d43d1a4e9f22cbfaa8a87b1555981c407e124  # v2.17.1
+        uses: stklug84/actions/cv/generate@b306482db7348b1f07e87fe9088af06a0afd2e1b  # v2.19.0-dev
         with:
           manifest: ${{ inputs.generate-manifest }}
           templates-dir: ${{ inputs.generate-templates-dir }}
@@ -370,7 +370,7 @@ jobs:
         # Pinned to actions v2.15.0: scan.sh recurses to any depth (for the
         # nested cvs/<yaml>-<lang>/<style>/ layout) and emits an empty
         # matrix instead of failing when there are no variants to build.
-        uses: stklug84/actions/texlive/discover-variants@f90d43d1a4e9f22cbfaa8a87b1555981c407e124  # v2.17.1
+        uses: stklug84/actions/texlive/discover-variants@b306482db7348b1f07e87fe9088af06a0afd2e1b  # v2.19.0-dev
         with:
           root: ${{ inputs.root }}
           default-engine: ${{ inputs.default-engine }}
@@ -447,7 +447,7 @@ jobs:
           path: ${{ inputs.prebuild-into }}
 
       - name: Build ${{ matrix.name }} (${{ matrix.engine }})
-        uses: stklug84/actions/texlive/build-pdf@f90d43d1a4e9f22cbfaa8a87b1555981c407e124  # v2.17.1
+        uses: stklug84/actions/texlive/build-pdf@b306482db7348b1f07e87fe9088af06a0afd2e1b  # v2.19.0-dev
         with:
           working-directory: ${{ matrix.dir }}
           main: ${{ matrix.main }}
@@ -471,7 +471,7 @@ jobs:
 
       - name: Upload build logs on failure
         if: failure() && needs.discover.outputs.local != 'true'
-        uses: stklug84/actions/texlive/upload-build-logs@f90d43d1a4e9f22cbfaa8a87b1555981c407e124  # v2.17.1
+        uses: stklug84/actions/texlive/upload-build-logs@b306482db7348b1f07e87fe9088af06a0afd2e1b  # v2.19.0-dev
         with:
           artifact-name: ${{ env.ARTIFACT_PREFIX }}-${{ matrix.name }}-logs
           paths: |
@@ -549,11 +549,12 @@ jobs:
   #  (unique and chronologically sortable; GitHub marks the newest as
   #  "Latest release", so `gh release download` without a tag always
   #  fetches the current PDFs). When release-keep > 0, older releases
-  #  matching the same tag pattern are pruned together with their tags
-  #  (gh release delete --cleanup-tag), and a follow-up sweep deletes any
-  #  workflow-pattern tag left orphaned (no matching release) by older runs
-  #  or a partial prune. Manually created releases or tags in other formats
-  #  are never touched.
+  #  matching the same tag pattern are pruned together with their tags,
+  #  and orphaned workflow-pattern tags are swept. Manually created
+  #  releases or tags in other formats are never touched. Publishing and
+  #  pruning are the shared stklug84/actions/release/publish-dated
+  #  composite action (also used by revealjs-build-slides); only the
+  #  CV-specific asset flattening stays here.
   # =====================================================================
   release:
     needs: [discover, package]
@@ -632,83 +633,16 @@ jobs:
             exit 1
           fi
 
-      - name: Create versioned release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          COMMIT_SUBJECT: ${{ github.event.head_commit.message }}
-        run: |
-          set -euo pipefail
-          TAG="v$(date +%Y.%m.%d)-r${GITHUB_RUN_NUMBER}"
-          SHORT_SHA="${GITHUB_SHA:0:7}"
-          TITLE="CVs $(date +%Y-%m-%d) ($SHORT_SHA)"
-          SUBJECT="$(printf '%s\n' "$COMMIT_SUBJECT" | head -n1)"
-          {
-            echo "Built from $GITHUB_SHA"
-            echo
-            echo "Commit: $SUBJECT"
-            echo
-            echo "Variants:"
-            for f in ./assets/*.pdf; do
-              echo "- $(basename "$f")"
-            done
-          } > notes.md
-          gh release create "$TAG" ./assets/*.pdf \
-            --target "$GITHUB_SHA" \
-            --title "$TITLE" \
-            --notes-file notes.md
-          echo "Published release $TAG"
-
-      - name: Prune old releases
-        if: inputs.release-keep != '0'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          KEEP: ${{ inputs.release-keep }}
-        run: |
-          set -euo pipefail
-          # Workflow tag pattern: v<YYYY.MM.DD>-r<N>. Only releases/tags
-          # matching it are ever touched; manually created releases or tags
-          # in other formats are left alone.
-          PATTERN='^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}-r[0-9]+$'
-
-          # (1) Prune old RELEASES (newest first by creation date), deleting
-          #     each release together with its underlying git tag.
-          mapfile -t tags < <(
-            gh release list --limit 1000 \
-              --json tagName,createdAt \
-              --jq 'sort_by(.createdAt) | reverse | .[].tagName' \
-            | grep -E "$PATTERN" || true
-          )
-          echo "Found ${#tags[@]} workflow release(s); keeping newest $KEEP."
-          for ((i = KEEP; i < ${#tags[@]}; i++)); do
-            echo "Pruning release ${tags[$i]} (and its tag)"
-            gh release delete "${tags[$i]}" --cleanup-tag --yes
-          done
-
-          # (2) Sweep ORPHAN TAGS: workflow-pattern tags with no matching
-          #     release (e.g. left behind by older runs that deleted the
-          #     release without --cleanup-tag, or a partially failed prune).
-          #     `gh release delete --cleanup-tag` only removes the tag of a
-          #     still-existing release, so it can never reclaim these; delete
-          #     them directly via the git-refs API.
-          mapfile -t release_tags < <(
-            gh release list --limit 1000 --json tagName --jq '.[].tagName' \
-            | grep -E "$PATTERN" || true
-          )
-          mapfile -t all_tags < <(
-            gh api --paginate "repos/${GH_REPO}/tags" --jq '.[].name' \
-            | grep -E "$PATTERN" || true
-          )
-          for tag in "${all_tags[@]}"; do
-            keep_tag=""
-            for rt in "${release_tags[@]}"; do
-              if [ "$tag" = "$rt" ]; then keep_tag="yes"; break; fi
-            done
-            if [ -z "$keep_tag" ]; then
-              echo "Deleting orphan tag $tag (no matching release)"
-              gh api -X DELETE "repos/${GH_REPO}/git/refs/tags/${tag}"
-            fi
-          done
+      # Tag v<YYYY.MM.DD>-r<run-number>, title "CVs <date> (<short-sha>)",
+      # notes listing the commit subject and the variants, then prune to
+      # release-keep (0 = keep all). The logic lives in the shared
+      # release/publish-dated composite action, which also reuses the
+      # release of a re-run (--clobber) and prunes fail-safely: nothing is
+      # deleted unless both the release and the tag inventory succeeded.
+      - name: Create versioned release and prune
+        uses: stklug84/actions/release/publish-dated@b306482db7348b1f07e87fe9088af06a0afd2e1b  # v2.19.0-dev
+        with:
+          files: "assets/*.pdf"
+          title-prefix: "CVs"
+          list-heading: "Variants:"
+          keep: ${{ inputs.release-keep }}
