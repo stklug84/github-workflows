@@ -25,6 +25,7 @@ prefix:
 .github/workflows/python-*.yml   # Python static analysis
 .github/workflows/rdf-*.yml      # RDF validation and generation
 .github/workflows/release-*.yml  # tag-triggered artifact publishing
+.github/workflows/revealjs-*.yml # reveal.js slide decks (Markdown -> HTML + PDF)
 .github/workflows/repo-*.yml     # repository hygiene (lint, CodeQL, ...)
 .github/workflows/misc-*.yml     # everything else
 .github/workflows/lint.yml       # repository CI (not reusable)
