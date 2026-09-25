@@ -193,13 +193,13 @@ jobs:
       # digest pins current; we only consume its FROM references.
       - name: Resolve toolchain images
         id: images
-        uses: stklug84/actions/revealjs/resolve-images@b306482db7348b1f07e87fe9088af06a0afd2e1b  # v2.19.0-dev
+        uses: stklug84/actions/revealjs/resolve-images@acdac12cd0e7ce5261b61a9f1a3c33226815dc0e  # v2.19.0-dev
         with:
           dockerfile: ${{ inputs.revealjs-dockerfile }}
 
       - name: Discover decks
         id: scan
-        uses: stklug84/actions/revealjs/discover-decks@b306482db7348b1f07e87fe9088af06a0afd2e1b  # v2.19.0-dev
+        uses: stklug84/actions/revealjs/discover-decks@acdac12cd0e7ce5261b61a9f1a3c33226815dc0e  # v2.19.0-dev
         with:
           root: ${{ inputs.root }}
           main: ${{ inputs.main }}
@@ -231,7 +231,7 @@ jobs:
 
       - name: Build ${{ matrix.name }} (HTML)
         id: html
-        uses: stklug84/actions/revealjs/build-html@b306482db7348b1f07e87fe9088af06a0afd2e1b  # v2.19.0-dev
+        uses: stklug84/actions/revealjs/build-html@acdac12cd0e7ce5261b61a9f1a3c33226815dc0e  # v2.19.0-dev
         with:
           source: ${{ matrix.source }}
           name: ${{ matrix.name }}
@@ -242,7 +242,7 @@ jobs:
 
       - name: Build ${{ matrix.name }} (PDF)
         if: ${{ inputs.run-pdf }}
-        uses: stklug84/actions/revealjs/build-pdf@b306482db7348b1f07e87fe9088af06a0afd2e1b  # v2.19.0-dev
+        uses: stklug84/actions/revealjs/build-pdf@acdac12cd0e7ce5261b61a9f1a3c33226815dc0e  # v2.19.0-dev
         with:
           html: ${{ steps.html.outputs.html }}
           decktape-image: ${{ needs.discover.outputs.decktape-image }}
@@ -367,7 +367,7 @@ jobs:
           path: ./dist
 
       - name: Publish dated release
-        uses: stklug84/actions/release/publish-dated@b306482db7348b1f07e87fe9088af06a0afd2e1b  # v2.19.0-dev
+        uses: stklug84/actions/release/publish-dated@acdac12cd0e7ce5261b61a9f1a3c33226815dc0e  # v2.19.0-dev
         with:
           files: ${{ inputs.release-html && 'dist/*.pdf dist/*.html' || 'dist/*.pdf' }}
           title-prefix: "Slides"
