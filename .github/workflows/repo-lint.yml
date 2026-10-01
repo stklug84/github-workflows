@@ -120,6 +120,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
+      # The binary goes to $RUNNER_TEMP, never into the checkout: under
+      # `gh act --bind` the workspace IS the caller's working copy, and a
+      # binary dropped there is one `git add .` away from being committed.
       - name: Download actionlint
         id: get-actionlint
         env:
@@ -128,14 +131,14 @@ jobs:
           set -euo pipefail
           BASE="https://raw.githubusercontent.com/rhysd/actionlint"
           bash <(curl -fsSL "$BASE/v${ACTIONLINT_VERSION}/scripts/download-actionlint.bash") \
-            "$ACTIONLINT_VERSION"
+            "$ACTIONLINT_VERSION" "$RUNNER_TEMP"
 
       # actionlint feeds every `run:` block through shellcheck, honouring
       # the calling repository's .shellcheckrc.
       - name: Run actionlint
         run: |
           set -euo pipefail
-          ./actionlint -color
+          "$RUNNER_TEMP/actionlint" -color
 
   yamllint:
     name: yamllint
