@@ -193,13 +193,13 @@ jobs:
       # digest pins current; we only consume its FROM references.
       - name: Resolve toolchain images
         id: images
-        uses: stklug84/actions/revealjs/resolve-images@a7c55984cc09163d5365eb94764fd5a6e9871771  # v2.19.0-dev
+        uses: stklug84/actions/revealjs/resolve-images@c6c3adbc4140cbf096c0c61c30b4fa96ff82b8dd  # v2.19.0
         with:
           dockerfile: ${{ inputs.revealjs-dockerfile }}
 
       - name: Discover decks
         id: scan
-        uses: stklug84/actions/revealjs/discover-decks@a7c55984cc09163d5365eb94764fd5a6e9871771  # v2.19.0-dev
+        uses: stklug84/actions/revealjs/discover-decks@c6c3adbc4140cbf096c0c61c30b4fa96ff82b8dd  # v2.19.0
         with:
           root: ${{ inputs.root }}
           main: ${{ inputs.main }}
@@ -231,7 +231,7 @@ jobs:
 
       - name: Build ${{ matrix.name }} (HTML)
         id: html
-        uses: stklug84/actions/revealjs/build-html@a7c55984cc09163d5365eb94764fd5a6e9871771  # v2.19.0-dev
+        uses: stklug84/actions/revealjs/build-html@c6c3adbc4140cbf096c0c61c30b4fa96ff82b8dd  # v2.19.0
         with:
           source: ${{ matrix.source }}
           name: ${{ matrix.name }}
@@ -242,7 +242,7 @@ jobs:
 
       - name: Build ${{ matrix.name }} (PDF)
         if: ${{ inputs.run-pdf }}
-        uses: stklug84/actions/revealjs/build-pdf@a7c55984cc09163d5365eb94764fd5a6e9871771  # v2.19.0-dev
+        uses: stklug84/actions/revealjs/build-pdf@c6c3adbc4140cbf096c0c61c30b4fa96ff82b8dd  # v2.19.0
         with:
           html: ${{ steps.html.outputs.html }}
           decktape-image: ${{ needs.discover.outputs.decktape-image }}
@@ -367,7 +367,7 @@ jobs:
           path: ./dist
 
       - name: Publish dated release
-        uses: stklug84/actions/release/publish-dated@a7c55984cc09163d5365eb94764fd5a6e9871771  # v2.19.0-dev
+        uses: stklug84/actions/release/publish-dated@c6c3adbc4140cbf096c0c61c30b4fa96ff82b8dd  # v2.19.0
         with:
           files: ${{ inputs.release-html && 'dist/*.pdf dist/*.html' || 'dist/*.pdf' }}
           title-prefix: "Slides"
