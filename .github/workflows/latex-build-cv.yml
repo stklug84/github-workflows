@@ -447,7 +447,7 @@ jobs:
           path: ${{ inputs.prebuild-into }}
 
       - name: Build ${{ matrix.name }} (${{ matrix.engine }})
-        uses: stklug84/actions/texlive/build-pdf@c6c3adbc4140cbf096c0c61c30b4fa96ff82b8dd  # v2.19.0
+        uses: stklug84/actions/texlive/build-pdf@3edfff92a595c0e2365459f70bfe02b97311f0d7  # v2.18.0
         with:
           working-directory: ${{ matrix.dir }}
           main: ${{ matrix.main }}
@@ -471,7 +471,7 @@ jobs:
 
       - name: Upload build logs on failure
         if: failure() && needs.discover.outputs.local != 'true'
-        uses: stklug84/actions/texlive/upload-build-logs@c6c3adbc4140cbf096c0c61c30b4fa96ff82b8dd  # v2.19.0
+        uses: stklug84/actions/texlive/upload-build-logs@3edfff92a595c0e2365459f70bfe02b97311f0d7  # v2.18.0
         with:
           artifact-name: ${{ env.ARTIFACT_PREFIX }}-${{ matrix.name }}-logs
           paths: |
