@@ -284,7 +284,7 @@ jobs:
 
       - name: Upload deck artifact
         if: needs.discover.outputs.local != 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: ${{ env.ARTIFACT_PREFIX }}-deck-${{ matrix.name }}
           path: ${{ steps.files.outputs.paths }}
@@ -295,7 +295,7 @@ jobs:
       # pandoc defaults) so a failing render can be inspected offline.
       - name: Upload build logs on failure
         if: failure() && needs.discover.outputs.local != 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: ${{ env.ARTIFACT_PREFIX }}-logs-${{ matrix.name }}
           path: |
@@ -319,7 +319,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Download all deck artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
         with:
           pattern: ${{ env.ARTIFACT_PREFIX }}-deck-*
           merge-multiple: true
@@ -332,7 +332,7 @@ jobs:
           find ./dist -type f -print | sort
 
       - name: Upload combined artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: ${{ env.ARTIFACT_PREFIX }}
           path: ./dist/*
@@ -360,7 +360,7 @@ jobs:
       contents: write
     steps:
       - name: Download all deck artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
         with:
           pattern: ${{ env.ARTIFACT_PREFIX }}-deck-*
           merge-multiple: true
