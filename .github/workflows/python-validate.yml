@@ -139,7 +139,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Run ruff (lint + format check)
-        uses: stklug84/actions/python/lint@f90d43d1a4e9f22cbfaa8a87b1555981c407e124  # v2.17.1
+        uses: stklug84/actions/python/lint@c6c3adbc4140cbf096c0c61c30b4fa96ff82b8dd  # v2.19.0
         with:
           paths: ${{ inputs.paths }}
           config: ${{ inputs.config }}
@@ -157,7 +157,7 @@ jobs:
       # Extra stub/import dependencies (mypy-extra-deps) are installed by
       # the composite action itself, right next to the pinned mypy.
       - name: Run mypy
-        uses: stklug84/actions/python/typecheck@f90d43d1a4e9f22cbfaa8a87b1555981c407e124  # v2.17.1
+        uses: stklug84/actions/python/typecheck@c6c3adbc4140cbf096c0c61c30b4fa96ff82b8dd  # v2.19.0
         with:
           paths: ${{ inputs.paths }}
           config: ${{ inputs.config }}
@@ -174,7 +174,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Run bandit
-        uses: stklug84/actions/python/security@f90d43d1a4e9f22cbfaa8a87b1555981c407e124  # v2.17.1
+        uses: stklug84/actions/python/security@c6c3adbc4140cbf096c0c61c30b4fa96ff82b8dd  # v2.19.0
         with:
           paths: ${{ inputs.paths }}
           config: ${{ inputs.config }}

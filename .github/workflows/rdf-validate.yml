@@ -153,7 +153,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Validate Turtle files
-        uses: stklug84/actions/rdf/validate-turtle@f90d43d1a4e9f22cbfaa8a87b1555981c407e124  # v2.17.1
+        uses: stklug84/actions/rdf/validate-turtle@c6c3adbc4140cbf096c0c61c30b4fa96ff82b8dd  # v2.19.0
         with:
           glob: ${{ inputs.turtle-glob }}
           jena-version: ${{ inputs.jena-version }}
@@ -168,7 +168,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Validate SPARQL files
-        uses: stklug84/actions/rdf/validate-sparql@f90d43d1a4e9f22cbfaa8a87b1555981c407e124  # v2.17.1
+        uses: stklug84/actions/rdf/validate-sparql@c6c3adbc4140cbf096c0c61c30b4fa96ff82b8dd  # v2.19.0
         with:
           glob: ${{ inputs.sparql-glob }}
           python-version: ${{ inputs.python-version }}
@@ -194,7 +194,7 @@ jobs:
           bash -euo pipefail -c "$PREPARE_COMMAND"
 
       - name: Reason over OWL ontologies
-        uses: stklug84/actions/rdf/reason-owl@f90d43d1a4e9f22cbfaa8a87b1555981c407e124  # v2.17.1
+        uses: stklug84/actions/rdf/reason-owl@c6c3adbc4140cbf096c0c61c30b4fa96ff82b8dd  # v2.19.0
         with:
           files: ${{ inputs.owl-files }}
           reasoner: ${{ inputs.owl-reasoner }}
