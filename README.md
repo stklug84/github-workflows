@@ -637,7 +637,13 @@ stripped) and `BUNDLE_DIR` (the unpack directory) exported.
 
 The caller owns the trigger — a reusable workflow cannot declare one — and must
 grant `contents: write`, since called workflows do not inherit the caller's
-permissions.
+permissions. The checkout does not persist that token in `.git/config`: the
+command hooks run the caller's build tooling, and only the release step needs
+the token, which it passes to `gh` as `GH_TOKEN`.
+
+With `require-on-branch` set (typically `main`), the run fails before the build
+unless the tagged commit is on that branch, so a tag pushed on a commit that
+never went through the branch's review publishes nothing.
 
 ### Usage
 
@@ -659,6 +665,7 @@ jobs:
     with:
       tag-prefix: "graph-"
       version-pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+      require-on-branch: "main"
       install-command: 'pip install ".[validate]"'
       build-command: 'python3 scripts/build_graph_bundle.py --graph-version "$GRAPH_VERSION"'
       unpack-glob: "dist/*.tar.gz"
@@ -674,6 +681,7 @@ jobs:
 | `python-version`          | `3.12`          | Python version for `actions/setup-python`.                        |
 | `tag-prefix`              | `""`            | Prefix stripped from the tag to obtain `RELEASE_VERSION`.         |
 | `version-pattern`         | `""`            | `grep -E` pattern the stripped version must match. Empty → no check. |
+| `require-on-branch`       | `""`            | Branch the tagged commit must be on (e.g. `main`). Empty → no check. |
 | `install-command`         | `""`            | Installs the build/validation tooling. Empty skips the step.      |
 | `prepare-command`         | `""`            | Runs after install, before build (uncommittable inputs). Empty skips. |
 | `build-command`           | *(required)*    | Produces the release artifacts.                                   |
